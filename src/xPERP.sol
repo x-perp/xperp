@@ -26,7 +26,7 @@ pragma solidity ^0.8.21;
 import "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
-
+import "lib/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 contract xPERP is ERC20, Ownable, ReentrancyGuard {
 
@@ -36,8 +36,18 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
     // 1% of total supply, max tranfer amount possible
     uint256 public constant onePercentOfSupply = 10000 * 1 ether;
 
+    // 5% tax on xPERP traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
+    uint256 public constant taxRate = 50;
+
     // address of the revenue distribution bot
     address public revenueDistributionBot;
+
+    // address of the uniswap pair
+    address public uniswapPair;
+    address public uniswapRouter;
+
+    // team wallet
+    address public teamWallet;
 
     // switched on post launch
     bool public isTradingEnabled = false;
@@ -80,16 +90,30 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
         _;
     }
 
+    modifier botOrOwner() {
+        require(msg.sender == revenueDistributionBot || msg.sender == owner(), "Not authorized");
+        _;
+    }
+
     // ========== ERC20 ==========
 
     constructor() ERC20("xPERP", "xPERP") {
-
         _mint(msg.sender, oneMillion);
-
     }
 
     // ========== Configuration ==========
 
+    function setRevenueDistributionBot(address _revenueDistributionBot) external onlyOwner {
+        revenueDistributionBot = _revenueDistributionBot;
+    }
+
+    function setUniswapPair(address _uniswapRouter) external onlyOwner {
+        uniswapRouter = _uniswapRouter;
+        uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(
+            address(this),
+            uniswapV2Router.WETH()
+        );
+    }
 
     function EnableTradingOnUniSwap() external onlyOwner {
         isTradingEnabled = true;
@@ -104,16 +128,42 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
     // ========== ERC20 Overrides ==========
 
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
-        super._beforeTokenTransfer(from, to, amount);
+        if (amount > onePercentOfSupply) {
+            require(from == owner(), "Transfer amount exceeds 10000 tokens.");
+        }
+
         uint256 currentEpoch = epochs.length - 1;
         epochs[currentEpoch].depositedInEpoch[to] += amount;
         epochs[currentEpoch].withdrawnInEpoch[from] += amount;
+
+        // calculate 5% swap tax
+        if (from == uniswapPair || to == uniswapPair) {
+            //5% total tax
+            uint256 taxAmount = (amount * taxRate) / 1000;
+            uint256 amountAfterTax = amount - taxAmount;
+
+            //1% to LP
+
+            //2% to revenue share
+
+            //2% to team and operating expenses
+            LpTokenShare += (taxAmount * 20) / 100;
+
+            _teamTokenShare += (fees * _buyTeamFee) / buyTotalFees;
+            _autoBuyTokenShare += (fees * _buyAutobuyFee) / buyTotalFees;
+            teamWallet
+
+            _transfer(from, taxDestination, taxAmount);
+            _transfer(from, to, amountAfterTax);
+        }
+
+        super._beforeTokenTransfer(from, to, amount);
     }
 
     // ========== Revenue Sharing ==========
 
     // Function called by the revenue distribution bot to snapshot the state
-    function snapshot() external payable onlyOwner nonReentrant {
+    function snapshot() external payable botOrOwner nonReentrant {
         epochs.push();
         EpochInfo storage epoch = epochs[epochs.length - 1];
         epoch.epochTimestamp = block.timestamp;
