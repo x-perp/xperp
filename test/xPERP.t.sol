@@ -158,7 +158,56 @@ contract xPERPTest is PRBTest, StdCheats {
         //fund the pair
         console2.log("eth on the contract after injection", address(xperp).balance);
         console2.log("token on the contract after injection", xperp.balanceOf(address(xperp)));
+        assertEq(xperp.balanceOf(address(xperp)), 0, "contract balance mismatch");
 
+    }
+
+    function testSnapshot() {
+        // depositing 20 eth and 990K xperp in the pair
+        uint256 amountETHToUse = 20e18;
+        uint256 amountTokenToUse = 990_000e18;
+        fundPair(amountETHToUse, amountTokenToUse);
+        xperp.EnableTradingOnUniSwap();
+
+        //several users
+        address user1 = address(0x13);
+        address user2 = address(0x14);
+
+        //fund these wallet with xperp tokens
+        xperp.transfer(user1, 2000e18);
+        xperp.transfer(user2, 4000e18);
+
+        //swap to cgereate apair
+        // swap tokens to generate lp share 1%
+        address[] memory path = new address[](2);
+        path[0] = weth;
+        path[1] = address(xperp);
+        uniswapV2Router.swapExactETHForTokens{value: 1e18}(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        //make snapshot
+        uint256 tradingVolume = 10e18;
+        xperp.snapshot{value: tradingVolume}();
+        EpochInfo e = xperp.epochs(0);
+
+        xperp.transfer(user1, 1e18);
+        uniswapV2Router.swapExactETHForTokens{value: 1e18}(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+        uint256 tradingVolume = 10e18;
+        xperp.snapshot{value: tradingVolume}();
+
+
+        uint256 =
+        vm.startPrank(user1);
+        vm.endPrank(user1);
     }
 
     /// @dev transfer to another address, no taxes are paid

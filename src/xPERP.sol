@@ -240,8 +240,6 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         //Swap TokenForEth
         uint256 ethAmount = swapXPERPToETH(amountTokenToUse);
 
-        console2.log("amountETHToUse", ethAmount);
-        console2.log("amountTokenToUse", amountTokenToUse);
         // Add liquidity using all the received tokens and remaining ETH
         (uint amountToken, uint amountETH, uint liquidity) = uniswapV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
@@ -251,7 +249,6 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
             address(this),
             block.timestamp
         );
-        console2.log("liquidity added");
         liquidityPairTaxCollectedNotYetInjectedXPERP = 0;
         emit LiquidityAdded(amountToken, amountETH, liquidity);
     }
