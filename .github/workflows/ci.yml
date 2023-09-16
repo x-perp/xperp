@@ -1,7 +1,6 @@
 name: "CI"
 
 env:
-  API_KEY_ALCHEMY: ${{ secrets.API_KEY_ALCHEMY }}
   MAINNET_NODE_URI: ${{ secrets.MAINNET_NODE_URI }}
   FOUNDRY_PROFILE: "ci"
 
@@ -13,39 +12,6 @@ on:
       - "main"
 
 jobs:
-#  lint:
-#    runs-on: "ubuntu-latest"
-#    steps:
-#      - name: "Check out the repo"
-#        uses: "actions/checkout@v3"
-#        with:
-#          submodules: "recursive"
-#
-#      - name: "Install Foundry"
-#        uses: "foundry-rs/foundry-toolchain@v1"
-#
-#      - name: "Install Pnpm"
-#        uses: "pnpm/action-setup@v2"
-#        with:
-#          version: "8"
-#
-#      - name: "Install Node.js"
-#        uses: "actions/setup-node@v3"
-#        with:
-#          cache: "pnpm"
-#          node-version: "lts/*"
-#
-#      - name: "Install the Node.js dependencies"
-#        run: "pnpm install"
-#
-#      - name: "Lint the contracts"
-#        run: "pnpm lint"
-#
-#      - name: "Add lint summary"
-#        run: |
-#          echo "## Lint result" >> $GITHUB_STEP_SUMMARY
-#          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
-
   build:
     runs-on: "ubuntu-latest"
     steps:
@@ -66,8 +32,8 @@ jobs:
           echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
   test:
-    needs: ["build"]
-#    needs: ["lint", "build"]
+    needs: [ "build" ]
+    #    needs: ["lint", "build"]
     runs-on: "ubuntu-latest"
     steps:
       - name: "Check out the repo"

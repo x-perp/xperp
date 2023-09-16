@@ -2,19 +2,19 @@
 
 [![Compile & Test Pass](https://github.com/x-perp/xperp/actions/workflows/ci.yml/badge.svg)](https://github.com/x-perp/xperp/actions/workflows/ci.yml)
 
+https://twitter.com/xperptech
+
+https://xperp.tech
 
 ```shell
-  xPERP Token
+  xperp Token
    ____  _____ ____  ____
    __  _|  _ \| ____|  _ \|  _ \
    \ \/ / |_) |  _| | |_) | |_) |
     >  <|  __/| |___|  _ <|  __/
    /_/\_\_|   |_____|_| \_\_|
  Go long or short with leverage on @friendtech keys via Telegram
- =====================================
- https://twitter.com/xperptech
- https://xperp.tech
- =====================================
+ ==============================================================
  - Fair Launch: 99% of the token supply was added to liquidity at launch.
  - Partnership: 1% has been sold to Handz of Gods.
  - Supply: 1M tokens, fully circulating and non-dilutive.
@@ -22,7 +22,6 @@
  - Revenue Sharing: 30% of trading revenue goes to holders. xperp earns 2% of all trading volume.
  - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
 ```
-
 
 Foundry-based Solidity smart contract.
 
