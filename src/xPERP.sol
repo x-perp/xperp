@@ -12,12 +12,12 @@ pragma solidity ^0.8.21;
 // https://twitter.com/xperptech
 // https://xperp.tech
 // =====================================
-// - Fair Launch: 97% of the token supply was added to liquidity at launch.
-// - Partnership: 3% has been sold to Handz of Gods.
+// - Fair Launch: 99% of the token supply was added to liquidity at launch.
+// - Partnership: 1% has been sold to Handz of Gods.
 // - Supply: 1M tokens, fully circulating and non-dilutive.
-// - Tax: 5% tax on xPERP traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
-// - Revenue Sharing: 30% of trading revenue goes to holders. xPERP earns 2% of all trading volume.
-// - Eligibility: Holders of $xPERP tokens are entitled to revenue sharing.
+// - Tax: 5% tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
+// - Revenue Sharing: 30% of trading revenue goes to holders. xperp earns 2% of all trading volume.
+// - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -101,7 +101,7 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
 
     // ========== ERC20 ==========
 
-    constructor(address _teamWallet) ERC20("xPERP", "xPERP") {
+    constructor(address _teamWallet) ERC20("xperp", "") {
         require(_teamWallet != address(0), "Invalid team wallet");
         teamWallet = _teamWallet;
         uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(
@@ -137,9 +137,6 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
     // ========== ERC20 Overrides ==========
 
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
-        if (amount > onePercentOfSupply && from != address(0) && to != address(0)) {
-            require(from == owner(), "Transfer amount exceeds 10000 tokens.");
-        }
         if (from == uniswapV2Pair && to != address(uniswapV2Router) && to != address(uniswapV2Pair)) {
             require(isTradingEnabled, "Trading is not enabled yet");
         }
@@ -153,7 +150,11 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
         uint256 amountAfterTax = amount;
         // calculate 5% swap tax
         if (from == uniswapV2Pair || to == uniswapV2Pair) {
-            // 5% total tax on xPERP traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
+            if (amount > onePercentOfSupply) {
+                // owner() is an exception to fund the liquidity pair
+                require(from == owner() || to == owner(), "Transfer amount exceeds 10000 tokens.");
+            }
+            // 5% total tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
             uint256 taxAmount = (amount * 50) / 1000;
             amountAfterTax -= taxAmount;
             swapTaxCollectedTotal += taxAmount;

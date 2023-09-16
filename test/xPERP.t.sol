@@ -31,11 +31,12 @@ contract xPERPTest is PRBTest, StdCheats {
 
     /// @dev Total Supply check
     function testUniswapPairFund() public {
+        xperp.approve(address(xperp.uniswapV2Router()), 1_000_000e18);
         // depositing 50 ether / 970_000 xperp
-        uint256 amountETHToUse = 20e18;
+        uint256 amountETHToUse = 50e18;
         uint256 amountTokenToUse = 970_000e18;
         xperp.uniswapV2Router().addLiquidityETH{value: amountETHToUse}(
-            address(this),
+            address(xperp),
             amountTokenToUse,
             0,
             0,
@@ -43,8 +44,8 @@ contract xPERPTest is PRBTest, StdCheats {
             block.timestamp
         );
         (uint reserveA, uint reserveB,) = IUniswapV2Pair(xperp.uniswapV2Pair()).getReserves();
-        assertEq(reserveA, amountETHToUse, "reserves A are wrong");
-        assertEq(reserveB, amountTokenToUse, "reserves B are wrong");
+        assertEq(reserveA, amountTokenToUse, "reserves A (XPERP) are wrong");
+        assertEq(reserveB, amountETHToUse, "reserves B (ETH) are wrong");
     }
 
     /// @dev buy on uniswap, sell on uniswap for ether, taxes are correct
