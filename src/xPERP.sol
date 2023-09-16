@@ -27,6 +27,7 @@ import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import {console2} from "forge-std/console2.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/utils/TokenTimelock.sol";
 
 contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
 
@@ -55,16 +56,16 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     bool public isTradingEnabled = false;
 
     // total swap tax collected, completely distributed among token holders
-    uint256 public swapTaxCollectedTotal;
+    uint256 public swapTaxCollectedTotalXPERP;
 
     // revenue sharing tax collected, completely distributed among token holders
-    uint256 public revenueSharesCollectedSinceLastEpoch;
+    uint256 public revenueSharesCollectedSinceLastEpochXPERP;
 
     // revenue sharing tax collected, completely distributed among token holders
     uint256 public tradingRevenueDistributedTotalETH;
 
     // revenue sharing tax collected, completely distributed among token holders
-    uint256 public liquidityPairTaxCollectedNotYetInjected;
+    uint256 public liquidityPairTaxCollectedNotYetInjectedXPERP;
 
     // 2% of the tax goes to the team
 
@@ -94,8 +95,9 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     event TradingOnUniSwapDisabled();
     event Snapshot(uint256 epoch, uint256 totalSupply, uint256 swapTaxCollected, uint256 tradingRevenue);
     event SwappedToEth(uint256 amount, uint256 ethAmount);
+    event SwappedToXperp(uint256 amount, uint256 ethAmount);
     event Claimed(address indexed user, uint256 amount);
-    event LiquidityAdded(uint256 amountToken, uint256 amountETH);
+    event LiquidityAdded(uint256 amountToken, uint256 amountETH, uint256 liquidity);
 
     // ========== Modifiers ==========
 
@@ -181,10 +183,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
             // 5% total tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
             uint256 taxAmount = (amount * tax) / 10000;
             amountAfterTax -= taxAmount;
-            console2.log("taxAmount", taxAmount);
-            console2.log("amountAfterTax", amountAfterTax);
-            console2.log("amount", amount);
-            swapTaxCollectedTotal += taxAmount;
+            swapTaxCollectedTotalXPERP += taxAmount;
 
             // 2% to team and operating expenses: if tax is 5% , then 2% = 5% x 2 / 5
             uint256 teamShare = (amount * tax * 2) / 50000;
@@ -194,9 +193,9 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
             _transfer(from, address(this), taxAmount - teamShare);
             // 1% to LP
             uint256 lp = (amount * tax) / 50000;
-            liquidityPairTaxCollectedNotYetInjected += lp;
+            liquidityPairTaxCollectedNotYetInjectedXPERP += lp;
             // 2% revenue share (the rest to avoid rounding errors)
-            revenueSharesCollectedSinceLastEpoch += taxAmount - teamShare - lp;
+            revenueSharesCollectedSinceLastEpochXPERP += taxAmount - teamShare - lp;
         }
         return super.transfer(to, amountAfterTax);
     }
@@ -209,11 +208,11 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         EpochInfo storage epoch = epochs[epochs.length - 1];
         epoch.epochTimestamp = block.timestamp;
         epoch.epochTotalSupply = totalSupply();
-        epoch.epochRevenueFromSwapTaxCollectedXPERP = revenueSharesCollectedSinceLastEpoch;
+        epoch.epochRevenueFromSwapTaxCollectedXPERP = revenueSharesCollectedSinceLastEpochXPERP;
         epoch.epochTradingRevenueETH = msg.value;
         tradingRevenueDistributedTotalETH += msg.value;
-        uint256 ethAmount = swapXPERPToETH(revenueSharesCollectedSinceLastEpoch);
-        revenueSharesCollectedSinceLastEpoch = 0;
+        uint256 ethAmount = swapXPERPToETH(revenueSharesCollectedSinceLastEpochXPERP);
+        revenueSharesCollectedSinceLastEpochXPERP = 0;
         emit Snapshot(epochs.length - 1, totalSupply(), ethAmount, msg.value);
     }
 
@@ -228,33 +227,33 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
 
     // ========== Liquidity Injection ==========
+    /// @dev this function uses 1% LP tax token collected from swaps, swaps tokens for ETH and adds this to liquidity pair.
+    /// @dev There's also an option to transfer additional tokens and ETH to the contract, which will be used for liquidity injection
+    /// @dev This function can be called by anyone
+    function injectLiquidity(uint256 tokenAmount) external payable {
+        require(balanceOf(address(this)) >= liquidityPairTaxCollectedNotYetInjectedXPERP, "Not enough tokens");
+        transfer(address(this), tokenAmount);
 
-    function injectLiquidity(bool useContractEth) external payable botOrOwner {
-        uint256 totalETH = msg.value;
-        if (useContractEth) {
-            totalETH -= address(this).balance;
-        }
-        uint256 totalToken = balanceOf(address(this));
-        // Get reserves
-        (uint reserveA, uint reserveB,) = IUniswapV2Pair(uniswapV2Pair).getReserves();
+        // Tokens eligible for injection
+        uint256 amountTokenToUse = (liquidityPairTaxCollectedNotYetInjectedXPERP + tokenAmount) / 2;
 
-        // Calculate the exact amount of tokens and ETH needed based on the reserves
-        uint256 amountTokenNeeded = (totalETH * reserveA) / reserveB;
-        uint256 amountETHNeeded = (totalToken * reserveB) / reserveA;
+        //Swap TokenForEth
+        uint256 ethAmount = swapXPERPToETH(amountTokenToUse);
 
-        uint256 amountTokenToUse = amountTokenNeeded <= totalToken ? amountTokenNeeded : totalToken;
-        uint256 amountETHToUse = amountETHNeeded <= totalETH ? amountETHNeeded : totalETH;
-
+        console2.log("amountETHToUse", ethAmount);
+        console2.log("amountTokenToUse", amountTokenToUse);
         // Add liquidity using all the received tokens and remaining ETH
-        uniswapV2Router.addLiquidityETH{value: amountETHToUse}(
+        (uint amountToken, uint amountETH, uint liquidity) = uniswapV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
             amountTokenToUse,
             0,
             0,
-            owner(),
+            address(this),
             block.timestamp
         );
-        emit LiquidityAdded(amountTokenToUse, amountETHToUse);
+        console2.log("liquidity added");
+        liquidityPairTaxCollectedNotYetInjectedXPERP = 0;
+        emit LiquidityAdded(amountToken, amountETH, liquidity);
     }
 
     function swapXPERPToETH(uint256 _amount) internal returns (uint256) {
@@ -284,6 +283,10 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     function rescueERC20(address _tokenAdd, uint256 _amount) external {
         IERC20(_tokenAdd).transfer(owner(), _amount);
     }
+
+    // ========== Fallbacks ==========
+
+    receive() external payable {}
 
     // ========== View functions ==========
 

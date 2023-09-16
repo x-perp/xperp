@@ -102,20 +102,63 @@ contract xPERPTest is PRBTest, StdCheats {
             block.timestamp
         );
         assertEq(address(this).balance, balanceBeforeETH - amountETHToUse, "ETH balance mismatch");
-        console2.log("expectedXPERPAfterTax", expectedXPERPAfterTax);
-        console2.log("XPERPRecieved", xperp.balanceOf(address(this)) - balanceBeforeXPERP);
         assertEq(expectedXPERPAfterTax, xperp.balanceOf(address(this)) - balanceBeforeXPERP, "XPERP balance mismatch");
 
         //check taxes, team wallet gets 2%
         assertEq(xperp.balanceOf(teamTestWallet), expectedXPERP * 20 / 1000, "team wallet balance mismatch");
         //the contract gets 1% (revshare distribution) + 2%
-        console2.log("revshare wallet real balance change", xperp.balanceOf(address(xperp)) - contractBalanceBeforeSwap);
-        console2.log("revshare wallet estimation balance change", expectedXPERP * 30 / 1000);
         assertEq(xperp.balanceOf(address(xperp)), contractBalanceBeforeSwap + expectedXPERP * 30 / 1000, "contract balance mismatch");
         // check distribution 1% to the liquidity pair
-        assertEq(xperp.liquidityPairTaxCollectedNotYetInjected(), expectedXPERP * 10 / 1000, "liquidityPairTaxCollectedNotYetInjected mismatch");
+        assertEq(xperp.liquidityPairTaxCollectedNotYetInjectedXPERP(), expectedXPERP * 10 / 1000, "liquidityPairTaxCollectedNotYetInjected mismatch");
         // 2% revenue share (the rest to avoid rounding errors)
-        assertEq(xperp.revenueSharesCollectedSinceLastEpoch(), expectedXPERP * 20 / 1000, "liquidityPairTaxCollectedNotYetInjected mismatch");
+        assertEq(xperp.revenueSharesCollectedSinceLastEpochXPERP(), expectedXPERP * 20 / 1000, "liquidityPairTaxCollectedNotYetInjected mismatch");
+    }
+
+    function testInjectLiquidity() public {
+        // depositing 20 eth and 990K xperp in the pair
+        uint256 amountETHToUse = 20e18;
+        uint256 amountTokenToUse = 990_000e18;
+        fundPair(amountETHToUse, amountTokenToUse);
+        xperp.EnableTradingOnUniSwap();
+
+        // swap tokens to generate lp share 1%
+        address[] memory path = new address[](2);
+        path[0] = weth;
+        path[1] = address(xperp);
+        uniswapV2Router.swapExactETHForTokens{value: 1e18}(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        // checking the amount of xperp that is a 1% lp tax
+        uint lpShare = xperp.liquidityPairTaxCollectedNotYetInjectedXPERP();
+
+
+        (uint reserveA, uint reserveB,) = IUniswapV2Pair(xperp.uniswapV2Pair()).getReserves();
+        console2.log("liquidityPairTaxCollectedNotYetInjectedXPERP", lpShare);
+        console2.log("xperp balance on the contract", xperp.balanceOf(address(xperp)));
+        console2.log("reserveA", reserveA);
+        console2.log("reserveB", reserveB);
+
+        //fund the pair
+        console2.log("eth on the contract before injection", address(xperp).balance);
+        console2.log("token on the contract before injection", xperp.balanceOf(address(xperp)));
+
+        xperp.injectLiquidity(0);
+//        xperp.injectLiquidity{value: 1 ether}();
+        console2.log("eth on the contract", address(xperp).balance);
+        console2.log("token on the contract", xperp.balanceOf(address(xperp)));
+
+        (reserveA, reserveB,) = IUniswapV2Pair(xperp.uniswapV2Pair()).getReserves();
+        console2.log("reserveA", reserveA);
+        console2.log("reserveB", reserveB);
+
+        //fund the pair
+        console2.log("eth on the contract after injection", address(xperp).balance);
+        console2.log("token on the contract after injection", xperp.balanceOf(address(xperp)));
+
     }
 
     /// @dev transfer to another address, no taxes are paid
