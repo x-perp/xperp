@@ -1,10 +1,29 @@
-# xPERP Token [![Open in Gitpod][gitpod-badge]][gitpod] [![Github Actions][gha-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: MIT][license-badge]][license]
+# xperp token
 
-#
+[![Compile & Test Pass](https://github.com/x-perp/xperp/actions/workflows/ci.yml/badge.svg)](https://github.com/x-perp/xperp/actions/workflows/ci.yml)
 
-[![Compile & Test Pass](https://https://github.com/x-perp/xPERP/actions/workflows/ci.yml/badge.svg)](https://https://github.com/x-perp/xPERP/actions/workflows/ci.yml)
+s```shell
+  xPERP Token
+   ____  _____ ____  ____
+   __  _|  _ \| ____|  _ \|  _ \
+   \ \/ / |_) |  _| | |_) | |_) |
+    >  <|  __/| |___|  _ <|  __/
+   /_/\_\_|   |_____|_| \_\_|
+ Go long or short with leverage on @friendtech keys via Telegram
+ =====================================
+ https://twitter.com/xperptech
+ https://xperp.tech
+ =====================================
+ - Fair Launch: 99% of the token supply was added to liquidity at launch.
+ - Partnership: 1% has been sold to Handz of Gods.
+ - Supply: 1M tokens, fully circulating and non-dilutive.
+ - Tax: 5% tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
+ - Revenue Sharing: 30% of trading revenue goes to holders. xperp earns 2% of all trading volume.
+ - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
+```
 
-A Foundry-based template for developing Solidity smart contracts, with sensible defaults.
+
+Foundry-based Solidity smart contract.
 
 ## What's Inside
 
