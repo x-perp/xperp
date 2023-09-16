@@ -1,9 +1,8 @@
-
 # xPERP Token [![Open in Gitpod][gitpod-badge]][gitpod] [![Github Actions][gha-badge]][gha] [![Foundry][foundry-badge]][foundry] [![License: MIT][license-badge]][license]
 
 #
-[![Compile & Test Pass](https://https://github.com/x-perp/xPERP/actions/workflows/ci.yml/badge.svg)](https://https://github.com/x-perp/xPERP/actions/workflows/ci.yml)
 
+[![Compile & Test Pass](https://https://github.com/x-perp/xPERP/actions/workflows/ci.yml/badge.svg)](https://https://github.com/x-perp/xPERP/actions/workflows/ci.yml)
 
 A Foundry-based template for developing Solidity smart contracts, with sensible defaults.
 
