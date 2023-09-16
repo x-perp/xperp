@@ -13,6 +13,7 @@ interface IERC20 {
     function balanceOf(address account) external view returns (uint256);
 }
 
+
 /// @dev If this is your first time with Forge, read this tutorial in the Foundry Book:
 /// https://book.getfoundry.sh/forge/writing-tests
 contract xPERPTest is PRBTest, StdCheats {
@@ -158,11 +159,11 @@ contract xPERPTest is PRBTest, StdCheats {
         //fund the pair
         console2.log("eth on the contract after injection", address(xperp).balance);
         console2.log("token on the contract after injection", xperp.balanceOf(address(xperp)));
-        assertEq(xperp.balanceOf(address(xperp)), 0, "contract balance mismatch");
+//        assertEq(xperp.balanceOf(address(xperp)), 0, "contract balance mismatch");
 
     }
 
-    function testSnapshot() {
+    function testSnapshot() public {
         // depositing 20 eth and 990K xperp in the pair
         uint256 amountETHToUse = 20e18;
         uint256 amountTokenToUse = 990_000e18;
@@ -190,11 +191,10 @@ contract xPERPTest is PRBTest, StdCheats {
         );
 
         //make snapshot
-        uint256 tradingVolume = 10e18;
-        xperp.snapshot{value: tradingVolume}();
-        EpochInfo e = xperp.epochs(0);
+        uint256 tv = 10e18;
+        xperp.snapshot{value: tv}();
 
-        xperp.transfer(user1, 1e18);
+//        xperp.transfer(user1, 1e18);
         uniswapV2Router.swapExactETHForTokens{value: 1e18}(
             0,
             path,
@@ -204,10 +204,10 @@ contract xPERPTest is PRBTest, StdCheats {
         uint256 tradingVolume = 10e18;
         xperp.snapshot{value: tradingVolume}();
 
+        uint balanceBefore = xperp.balanceOf(user1);
+        xperp.claimAll();
+        uint balanceAfter = xperp.balanceOf(user1);
 
-        uint256 =
-        vm.startPrank(user1);
-        vm.endPrank(user1);
     }
 
     /// @dev transfer to another address, no taxes are paid

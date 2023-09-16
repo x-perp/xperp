@@ -213,16 +213,19 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         tradingRevenueDistributedTotalETH += msg.value;
         uint256 ethAmount = swapXPERPToETH(revenueSharesCollectedSinceLastEpochXPERP);
         revenueSharesCollectedSinceLastEpochXPERP = 0;
-        emit Snapshot(epochs.length - 1, totalSupply(), ethAmount, msg.value);
+        emit Snapshot(epochs.length, totalSupply(), ethAmount, msg.value);
     }
 
     function claimAll() public {
+        require(epochs.length > 0, "No epochs yet");
         uint256 holderShare = 0;
         for (uint256 i = lastClaimedEpochs[msg.sender]; i < epochs.length; i++) {
             holderShare += getClaimable(i);
         }
-        lastClaimedEpochs[msg.sender] = epochs.length - 1;
+        console2.log("holderShare", holderShare);
+        lastClaimedEpochs[msg.sender] = epochs.length <= 1 ? 0 : epochs.length - 1;
         payable(msg.sender).transfer(holderShare);
+        console2.log("msg.sender", msg.sender);
         emit Claimed(msg.sender, holderShare);
     }
 
