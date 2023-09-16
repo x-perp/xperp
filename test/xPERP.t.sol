@@ -93,6 +93,7 @@ contract xPERPTest is PRBTest, StdCheats {
         // Apply 5% tax, the formula is  expectedXPERPAfterTax = (expectedXPERP * 9500) / 10000;
         uint256 expectedXPERPAfterTax = (numerator * 950) / (1000 * denominator);
 
+        uint256 contractBalanceBeforeSwap = xperp.balanceOf(address(xperp));
         // buy 1 ether worth of xperp
         uniswapV2Router.swapExactETHForTokens{value: amountETHToUse}(
             0,
@@ -104,6 +105,17 @@ contract xPERPTest is PRBTest, StdCheats {
         console2.log("expectedXPERPAfterTax", expectedXPERPAfterTax);
         console2.log("XPERPRecieved", xperp.balanceOf(address(this)) - balanceBeforeXPERP);
         assertEq(expectedXPERPAfterTax, xperp.balanceOf(address(this)) - balanceBeforeXPERP, "XPERP balance mismatch");
+
+        //check taxes, team wallet gets 2%
+        assertEq(xperp.balanceOf(teamTestWallet), expectedXPERP * 20 / 1000, "team wallet balance mismatch");
+        //the contract gets 1% (revshare distribution) + 2%
+        console2.log("revshare wallet real balance change", xperp.balanceOf(address(xperp)) - contractBalanceBeforeSwap);
+        console2.log("revshare wallet estimation balance change", expectedXPERP * 30 / 1000);
+        assertEq(xperp.balanceOf(address(xperp)), contractBalanceBeforeSwap + expectedXPERP * 30 / 1000, "contract balance mismatch");
+        // check distribution 1% to the liquidity pair
+        assertEq(xperp.liquidityPairTaxCollectedNotYetInjected(), expectedXPERP * 10 / 1000, "liquidityPairTaxCollectedNotYetInjected mismatch");
+        // 2% revenue share (the rest to avoid rounding errors)
+        assertEq(xperp.revenueSharesCollectedSinceLastEpoch(), expectedXPERP * 20 / 1000, "liquidityPairTaxCollectedNotYetInjected mismatch");
     }
 
     /// @dev transfer to another address, no taxes are paid
