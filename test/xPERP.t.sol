@@ -103,7 +103,7 @@ contract xPERPTest is PRBTest, StdCheats {
         assertEq(address(this).balance, balanceBeforeETH - amountETHToUse, "ETH balance mismatch");
         console2.log("expectedXPERPAfterTax", expectedXPERPAfterTax);
         console2.log("XPERPRecieved", xperp.balanceOf(address(this)) - balanceBeforeXPERP);
-        assertEq(expectedXPERPAfterTax, XPERPRecieved, "XPERP balance mismatch");
+        assertEq(expectedXPERPAfterTax, xperp.balanceOf(address(this)) - balanceBeforeXPERP, "XPERP balance mismatch");
     }
 
     /// @dev transfer to another address, no taxes are paid
