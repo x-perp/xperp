@@ -33,7 +33,6 @@ jobs:
 
   test:
     needs: [ "build" ]
-    #    needs: ["lint", "build"]
     runs-on: "ubuntu-latest"
     steps:
       - name: "Check out the repo"
