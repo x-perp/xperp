@@ -25,14 +25,20 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
+import {console2} from "forge-std/console2.sol";
 
-contract xPERP is ERC20, Ownable, ReentrancyGuard {
+contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
 
     // 1 Million is totalsuppy
     uint256 public constant oneMillion = 1_000_000 * 1 ether;
 
     // 1% of total supply, max tranfer amount possible
     uint256 public constant onePercentOfSupply = 10_000 * 1 ether;
+
+    // Taxation
+    uint256 public tax = 500;
+    bool public isTaxActive = true;
 
     IUniswapV2Router02 public constant uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
 
@@ -119,6 +125,15 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
         revenueDistributionBot = _revenueDistributionBot;
     }
 
+    function setTax(uint256 _tax) external onlyOwner {
+        require(_tax <= 1000, "Invalid tax");
+        tax = _tax;
+    }
+
+    function setTaxActive(bool _isTaxActive) external onlyOwner {
+        isTaxActive = _isTaxActive;
+    }
+
     function updateTeamWallet(address _teamWallet) external onlyOwner {
         require(_teamWallet != address(0), "Invalid team wallet");
         teamWallet = _teamWallet;
@@ -134,9 +149,18 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
         emit TradingOnUniSwapDisabled();
     }
 
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
     // ========== ERC20 Overrides ==========
 
-    function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        address from = msg.sender;
         if (from == uniswapV2Pair && to != address(uniswapV2Router) && to != address(uniswapV2Pair)) {
             require(isTradingEnabled, "Trading is not enabled yet");
         }
@@ -149,29 +173,32 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
 
         uint256 amountAfterTax = amount;
         // calculate 5% swap tax
-        if (from == uniswapV2Pair || to == uniswapV2Pair) {
+        if (isTaxActive && (from == uniswapV2Pair || to == uniswapV2Pair) && msg.sender != address(uniswapV2Router)) {
             if (amount > onePercentOfSupply) {
                 // owner() is an exception to fund the liquidity pair
                 require(from == owner() || to == owner(), "Transfer amount exceeds 10000 tokens.");
             }
             // 5% total tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
-            uint256 taxAmount = (amount * 50) / 1000;
+            uint256 taxAmount = (amount * tax) / 10000;
             amountAfterTax -= taxAmount;
+            console2.log("taxAmount", taxAmount);
+            console2.log("amountAfterTax", amountAfterTax);
+            console2.log("amount", amount);
             swapTaxCollectedTotal += taxAmount;
 
-            // 2% to team and operating expenses: 2/10 of the taxAmount
-            uint256 teamShare = (amount * 20) / 1000;
+            // 2% to team and operating expenses: if tax is 5% , then 2% = 5% x 2 / 5
+            uint256 teamShare = (amount * tax * 2) / 50000;
             _transfer(from, teamWallet, teamShare);
 
             // the rest 3% goes to the contract balance for revenue sharing and liquidity injeciton
             _transfer(from, address(this), taxAmount - teamShare);
             // 1% to LP
-            uint256 lp = (amount * 10) / 1000;
+            uint256 lp = (amount * tax) / 50000;
             liquidityPairTaxCollectedNotYetInjected += lp;
             // 2% revenue share (the rest to avoid rounding errors)
             revenueSharesCollectedSinceLastEpoch += taxAmount - teamShare - lp;
         }
-        super._beforeTokenTransfer(from, to, amountAfterTax);
+        return super.transfer(to, amountAfterTax);
     }
 
     // ========== Revenue Sharing ==========

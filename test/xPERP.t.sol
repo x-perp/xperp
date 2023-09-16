@@ -2,6 +2,7 @@
 pragma solidity >=0.8.19 <0.9.0;
 
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 import {PRBTest} from "@prb/test/PRBTest.sol";
 import {console2} from "forge-std/console2.sol";
@@ -16,11 +17,15 @@ interface IERC20 {
 /// https://book.getfoundry.sh/forge/writing-tests
 contract xPERPTest is PRBTest, StdCheats {
     xPERP internal xperp;
+    address constant teamTestWallet = 0x282e0D30DF3C7Ecb58430d31c1A28De4f9ee7F44;
+    IUniswapV2Pair internal uniswapV2Pair;
+    IUniswapV2Router02 internal uniswapV2Router;
+    address internal weth;
 
     /// @dev A function invoked before each test case is run.
     function setUp() public virtual {
         // Instantiate the contract-under-test.
-        xperp = new xPERP(address(this));
+        xperp = new xPERP(teamTestWallet);
     }
 
     /// @dev Total Supply check
@@ -29,13 +34,12 @@ contract xPERPTest is PRBTest, StdCheats {
         assertEq(balance, 1_000_000e18, "balance mismatch");
     }
 
-    /// @dev Total Supply check
-    function testUniswapPairFund() public {
-        xperp.approve(address(xperp.uniswapV2Router()), 1_000_000e18);
-        // depositing 50 ether / 970_000 xperp
-        uint256 amountETHToUse = 50e18;
-        uint256 amountTokenToUse = 970_000e18;
-        xperp.uniswapV2Router().addLiquidityETH{value: amountETHToUse}(
+    function fundPair(uint256 amountETHToUse, uint256 amountTokenToUse) public {
+        uniswapV2Pair = IUniswapV2Pair(xperp.uniswapV2Pair());
+        uniswapV2Router = IUniswapV2Router02(xperp.uniswapV2Router());
+        weth = uniswapV2Router.WETH();
+        xperp.approve(address(uniswapV2Router), 1_000_000e18);
+        uniswapV2Router.addLiquidityETH{value: amountETHToUse}(
             address(xperp),
             amountTokenToUse,
             0,
@@ -43,12 +47,64 @@ contract xPERPTest is PRBTest, StdCheats {
             address(this),
             block.timestamp
         );
-        (uint reserveA, uint reserveB,) = IUniswapV2Pair(xperp.uniswapV2Pair()).getReserves();
+    }
+
+    /// @dev Total Supply check
+    function testUniswapPairFund() public {
+        // depositing 50 ether / 990_000 xperp
+        uint256 amountETHToUse = 30e18;
+        uint256 amountTokenToUse = 990_000e18;
+        fundPair(amountETHToUse, amountTokenToUse);
+        (uint reserveA, uint reserveB,) = uniswapV2Pair.getReserves();
         assertEq(reserveA, amountTokenToUse, "reserves A (XPERP) are wrong");
         assertEq(reserveB, amountETHToUse, "reserves B (ETH) are wrong");
     }
 
     /// @dev buy on uniswap, sell on uniswap for ether, taxes are correct
+    function testSwap() public {
+        //fund the pair
+        uint256 amountETHToUse = 10e18;
+        uint256 amountTokenToUse = 990_000e18;
+        fundPair(amountETHToUse, amountTokenToUse);
+
+        xperp.EnableTradingOnUniSwap();
+
+        amountETHToUse = 1e18;
+        uint256 balanceBeforeETH = address(this).balance;
+        uint256 balanceBeforeXPERP = xperp.balanceOf(address(this));
+        address[] memory path = new address[](2);
+        path[0] = weth;
+        path[1] = address(xperp);
+
+        // Fetch reserves
+        (uint reserveA, uint reserveB,) = uniswapV2Pair.getReserves();
+        // Make sure reserveA corresponds to ETH and reserveB to XPERP
+        address token0 = uniswapV2Pair.token0();
+        if (token0 == address(xperp)) {
+            (reserveA, reserveB) = (reserveB, reserveA);
+        }
+
+        // Calculate expected XPERP
+        uint256 amountInWithFee = amountETHToUse * 997;  // 0.3% fee is subtracted
+        uint256 numerator = amountInWithFee * reserveB;
+        uint256 denominator = reserveA * 1000 + amountInWithFee;  // 0.3% fee is added
+        uint256 expectedXPERP = numerator / denominator;
+
+        // Apply 5% tax, the formula is  expectedXPERPAfterTax = (expectedXPERP * 9500) / 10000;
+        uint256 expectedXPERPAfterTax = (numerator * 950) / (1000 * denominator);
+
+        // buy 1 ether worth of xperp
+        uniswapV2Router.swapExactETHForTokens{value: amountETHToUse}(
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+        assertEq(address(this).balance, balanceBeforeETH - amountETHToUse, "ETH balance mismatch");
+        console2.log("expectedXPERPAfterTax", expectedXPERPAfterTax);
+        console2.log("XPERPRecieved", xperp.balanceOf(address(this)) - balanceBeforeXPERP);
+        assertEq(expectedXPERPAfterTax, XPERPRecieved, "XPERP balance mismatch");
+    }
 
     /// @dev transfer to another address, no taxes are paid
     /// @dev trasnfer limitation, 1% of total supply
