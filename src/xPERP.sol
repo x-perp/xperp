@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.21;
 
 //  xPERP Token
@@ -20,33 +19,28 @@ pragma solidity ^0.8.21;
 // - Revenue Sharing: 30% of trading revenue goes to holders. xPERP earns 2% of all trading volume.
 // - Eligibility: Holders of $xPERP tokens are entitled to revenue sharing.
 
-//import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-//import "@openzeppelin/contracts/access/Ownable.sol";
-
-import "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
-import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
-import "lib/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "lib/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
-import "lib/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 
 contract xPERP is ERC20, Ownable, ReentrancyGuard {
 
     // 1 Million is totalsuppy
-    uint256 public constant oneMillion = 1000000 * 1 ether;
+    uint256 public constant oneMillion = 1_000_000 * 1 ether;
 
     // 1% of total supply, max tranfer amount possible
-    uint256 public constant onePercentOfSupply = 10000 * 1 ether;
+    uint256 public constant onePercentOfSupply = 10_000 * 1 ether;
 
     IUniswapV2Router02 public constant uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+
+    // address of the uniswap pair
     address public uniswapV2Pair;
 
     // address of the revenue distribution bot
     address public revenueDistributionBot;
-
-    // address of the uniswap pair
-    address public uniswapPair;
-    address public uniswapRouter;
 
     // team wallet
     address public teamWallet;
@@ -99,10 +93,6 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
 
     // ========== Modifiers ==========
 
-    modifier tradingEnabled() {
-        require(isTradingEnabled, "Trading is disabled");
-        _;
-    }
 
     modifier botOrOwner() {
         require(msg.sender == revenueDistributionBot || msg.sender == owner(), "Not authorized");
@@ -112,6 +102,7 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
     // ========== ERC20 ==========
 
     constructor(address _teamWallet) ERC20("xPERP", "xPERP") {
+        require(_teamWallet != address(0), "Invalid team wallet");
         teamWallet = _teamWallet;
         uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(
             address(this),
@@ -124,10 +115,12 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
     // ========== Configuration ==========
 
     function setRevenueDistributionBot(address _revenueDistributionBot) external onlyOwner {
+        require(_revenueDistributionBot != address(0), "Invalid bot address");
         revenueDistributionBot = _revenueDistributionBot;
     }
 
     function updateTeamWallet(address _teamWallet) external onlyOwner {
+        require(_teamWallet != address(0), "Invalid team wallet");
         teamWallet = _teamWallet;
     }
 
@@ -143,18 +136,23 @@ contract xPERP is ERC20, Ownable, ReentrancyGuard {
 
     // ========== ERC20 Overrides ==========
 
-    function _beforeTokenTransfer(address from, address to, uint256 amount) internal override tradingEnabled {
-        if (amount > onePercentOfSupply) {
+    function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
+        if (amount > onePercentOfSupply && from != address(0) && to != address(0)) {
             require(from == owner(), "Transfer amount exceeds 10000 tokens.");
         }
+        if (from == uniswapV2Pair && to != address(uniswapV2Router) && to != address(uniswapV2Pair)) {
+            require(isTradingEnabled, "Trading is not enabled yet");
+        }
 
-        uint256 currentEpoch = epochs.length - 1;
-        epochs[currentEpoch].depositedInEpoch[to] += amount;
-        epochs[currentEpoch].withdrawnInEpoch[from] += amount;
+        if (epochs.length > 0) {
+            uint256 currentEpoch = epochs.length - 1;
+            epochs[currentEpoch].depositedInEpoch[to] += amount;
+            epochs[currentEpoch].withdrawnInEpoch[from] += amount;
+        }
 
         uint256 amountAfterTax = amount;
         // calculate 5% swap tax
-        if (from == uniswapPair || to == uniswapPair) {
+        if (from == uniswapV2Pair || to == uniswapV2Pair) {
             // 5% total tax on xPERP traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
             uint256 taxAmount = (amount * 50) / 1000;
             amountAfterTax -= taxAmount;
