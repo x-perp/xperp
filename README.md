@@ -2,7 +2,8 @@
 
 [![Compile & Test Pass](https://github.com/x-perp/xperp/actions/workflows/ci.yml/badge.svg)](https://github.com/x-perp/xperp/actions/workflows/ci.yml)
 
-s```shell
+
+```shell
   xPERP Token
    ____  _____ ____  ____
    __  _|  _ \| ____|  _ \|  _ \
