@@ -239,4 +239,6 @@ contract xPERPTest is PRBTest, StdCheats {
         uint256 expectedBalance = 196_307_713.810457e6;
         assertEq(actualBalance, expectedBalance);
     }
+
+    receive() external payable {}
 }

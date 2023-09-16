@@ -77,6 +77,8 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         uint256 epochTotalSupply;
         // ETH collected for rewards for re-investors
         uint256 epochRevenueFromSwapTaxCollectedXPERP;
+        // Same swapped to ETH
+        uint256 epochRevenueFromSwapTaxCollectedETH;
         // Injected 30% revenue from trading
         uint256 epochTradingRevenueETH;
         // Used to calculate holder balances at the time of snapshot
@@ -98,6 +100,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     event SwappedToXperp(uint256 amount, uint256 ethAmount);
     event Claimed(address indexed user, uint256 amount);
     event LiquidityAdded(uint256 amountToken, uint256 amountETH, uint256 liquidity);
+    event ReceivedEther(address indexed from, uint256 amount);
 
     // ========== Modifiers ==========
 
@@ -213,17 +216,20 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         tradingRevenueDistributedTotalETH += msg.value;
         uint256 ethAmount = swapXPERPToETH(revenueSharesCollectedSinceLastEpochXPERP);
         revenueSharesCollectedSinceLastEpochXPERP = 0;
+        epoch.epochRevenueFromSwapTaxCollectedETH = ethAmount;
         emit Snapshot(epochs.length, totalSupply(), ethAmount, msg.value);
     }
 
-    function claimAll() public {
+    function claimAll() public nonReentrant {
         require(epochs.length > 0, "No epochs yet");
         uint256 holderShare = 0;
         for (uint256 i = lastClaimedEpochs[msg.sender]; i < epochs.length; i++) {
             holderShare += getClaimable(i);
         }
         console2.log("holderShare", holderShare);
-        lastClaimedEpochs[msg.sender] = epochs.length <= 1 ? 0 : epochs.length - 1;
+        console2.log("balance(this)", address(this).balance);
+        lastClaimedEpochs[msg.sender] = epochs.length - 1;
+        require(address(this).balance >= holderShare, "Insufficient contract balance to transfer share");
         payable(msg.sender).transfer(holderShare);
         console2.log("msg.sender", msg.sender);
         emit Claimed(msg.sender, holderShare);
@@ -286,8 +292,10 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
 
     // ========== Fallbacks ==========
 
-    receive() external payable {}
 
+    receive() external payable {
+        emit ReceivedEther(msg.sender, msg.value);
+    }
     // ========== View functions ==========
 
     function getBalanceForEpoch(uint256 _epoch) public view returns (uint256) {
@@ -306,7 +314,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         if (_epoch <= lastClaimedEpochs[msg.sender])
             return 0;
         else
-            return (getBalanceForEpoch(_epoch) * (epoch.epochRevenueFromSwapTaxCollectedXPERP + epoch.epochTradingRevenueETH)) / epoch.epochTotalSupply;
+            return (getBalanceForEpoch(_epoch) * (epoch.epochRevenueFromSwapTaxCollectedETH + epoch.epochTradingRevenueETH)) / epoch.epochTotalSupply;
     }
 
 
