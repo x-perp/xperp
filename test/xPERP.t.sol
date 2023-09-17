@@ -13,7 +13,6 @@ interface IERC20 {
     function balanceOf(address account) external view returns (uint256);
 }
 
-
 /// @dev If this is your first time with Forge, read this tutorial in the Foundry Book:
 /// https://book.getfoundry.sh/forge/writing-tests
 contract xPERPTest is PRBTest, StdCheats {
@@ -152,6 +151,7 @@ contract xPERPTest is PRBTest, StdCheats {
         console2.log("eth on the contract", address(xperp).balance);
         console2.log("token on the contract", xperp.balanceOf(address(xperp)));
 
+
         (reserveA, reserveB,) = IUniswapV2Pair(xperp.uniswapV2Pair()).getReserves();
         console2.log("reserveA", reserveA);
         console2.log("reserveB", reserveB);
@@ -207,7 +207,41 @@ contract xPERPTest is PRBTest, StdCheats {
         uint balanceBefore = xperp.balanceOf(user1);
         xperp.claimAll();
         uint balanceAfter = xperp.balanceOf(user1);
+        console2.log("balanceBefore", balanceBefore);
+        console2.log("balanceAfter", balanceAfter);
+//        assertEq(balanceAfter - balanceBefore, 1e18, "balance mismatch");
 
+    }
+
+
+    function testSnapshotTradingDistribution() public {
+        xperp.snapshot{value: 0}();
+        //several users
+        address user1 = address(0x13);
+        address user2 = address(0x14);
+
+        //fund these wallet with xperp tokens
+        xperp.transfer(user1, 2000e18);
+        xperp.transfer(user2, 4000e18);
+
+        console2.log("balance", xperp.balanceOf(user1));
+        console2.log("user2 balance", xperp.balanceOf(user2));
+        console2.log("total supply", xperp.totalSupply());
+
+        xperp.snapshot{value: 1e18}();
+
+
+        uint balanceBefore = user1.balance;
+        vm.startPrank(user1);
+        xperp.claimAll();
+        vm.stopPrank();
+        uint balanceAfter = user1.balance;
+        console2.log("balanceBefore", balanceBefore);
+        console2.log("balanceAfter", balanceAfter);
+
+        uint total = 1_000_000;
+        uint share = 1 ether * 2000 / total;
+        assertEq(balanceAfter - balanceBefore, share, "balance mismatch");
     }
 
     /// @dev transfer to another address, no taxes are paid

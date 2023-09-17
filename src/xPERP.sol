@@ -38,7 +38,8 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     uint256 public constant onePercentOfSupply = 10_000 * 1 ether;
 
     // Taxation
-    uint256 public tax = 500;
+    uint256 public totalTax = 500;
+    uint256 public teamWalletTax = 200;
     bool public isTaxActive = true;
 
     IUniswapV2Router02 public constant uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
@@ -130,9 +131,10 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         revenueDistributionBot = _revenueDistributionBot;
     }
 
-    function setTax(uint256 _tax) external onlyOwner {
-        require(_tax <= 1000, "Invalid tax");
-        tax = _tax;
+    function setTax(uint256 _tax, uint256 _teamWalletTax) external onlyOwner {
+        require(_tax >= 0 && _tax <= 1000 && _teamWalletTax >= 0 && _teamWalletTax <= 1000, "Invalid tax");
+        totalTax = _tax;
+        teamWalletTax = _teamWalletTax;
     }
 
     function setTaxActive(bool _isTaxActive) external onlyOwner {
@@ -184,18 +186,18 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
                 require(from == owner() || to == owner(), "Transfer amount exceeds 10000 tokens.");
             }
             // 5% total tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
-            uint256 taxAmount = (amount * tax) / 10000;
+            uint256 taxAmount = (amount * totalTax) / 10000;
             amountAfterTax -= taxAmount;
             swapTaxCollectedTotalXPERP += taxAmount;
 
-            // 2% to team and operating expenses: if tax is 5% , then 2% = 5% x 2 / 5
-            uint256 teamShare = (amount * tax * 2) / 50000;
+            // 2% to team and operating expenses
+            uint256 teamShare = (amount * teamWalletTax) / 10000;
             _transfer(from, teamWallet, teamShare);
 
             // the rest 3% goes to the contract balance for revenue sharing and liquidity injeciton
             _transfer(from, address(this), taxAmount - teamShare);
             // 1% to LP
-            uint256 lp = (amount * tax) / 50000;
+            uint256 lp = (amount * totalTax) / 50000;
             liquidityPairTaxCollectedNotYetInjectedXPERP += lp;
             // 2% revenue share (the rest to avoid rounding errors)
             revenueSharesCollectedSinceLastEpochXPERP += taxAmount - teamShare - lp;
@@ -214,7 +216,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         epoch.epochRevenueFromSwapTaxCollectedXPERP = revenueSharesCollectedSinceLastEpochXPERP;
         epoch.epochTradingRevenueETH = msg.value;
         tradingRevenueDistributedTotalETH += msg.value;
-        uint256 ethAmount = swapXPERPToETH(revenueSharesCollectedSinceLastEpochXPERP);
+        uint256 ethAmount = revenueSharesCollectedSinceLastEpochXPERP > 0 ? swapXPERPToETH(revenueSharesCollectedSinceLastEpochXPERP) : 0;
         revenueSharesCollectedSinceLastEpochXPERP = 0;
         epoch.epochRevenueFromSwapTaxCollectedETH = ethAmount;
         emit Snapshot(epochs.length, totalSupply(), ethAmount, msg.value);
@@ -223,8 +225,12 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     function claimAll() public nonReentrant {
         require(epochs.length > 0, "No epochs yet");
         uint256 holderShare = 0;
+        console2.log("lastClaimedEpochs[msg.sender]", lastClaimedEpochs[msg.sender]);
+        console2.log("epochs.length", epochs.length);
         for (uint256 i = lastClaimedEpochs[msg.sender]; i < epochs.length; i++) {
             holderShare += getClaimable(i);
+            console2.log("epoch: ", i);
+            console2.log("total holderShare", holderShare);
         }
         console2.log("holderShare", holderShare);
         console2.log("balance(this)", address(this).balance);
@@ -299,22 +305,42 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     // ========== View functions ==========
 
     function getBalanceForEpoch(uint256 _epoch) public view returns (uint256) {
+        console2.log("=== getBalanceForEpoch _epoch", _epoch);
         if (_epoch >= epochs.length) return 0;
         uint256 currentBalance = balanceOf(msg.sender);
-        if (epochs.length > 1)
-            for (uint256 e = epochs.length - 1; e >= _epoch; e--) {
-                currentBalance -= epochs[e].depositedInEpoch[msg.sender];
+        console2.log("currentBalance", currentBalance);
+        if (epochs.length > 1) {
+            uint256 e = epochs.length - 1;
+            while (true) {
+                console2.log("epoch", e);
+                console2.log("depositedInEpoch", epochs[e].depositedInEpoch[msg.sender]);
+                console2.log("withdrawnInEpoch", epochs[e].withdrawnInEpoch[msg.sender]);
                 currentBalance += epochs[e].withdrawnInEpoch[msg.sender];
+                currentBalance -= epochs[e].depositedInEpoch[msg.sender];
+                console2.log("currentBalance", currentBalance);
+                if (e == _epoch || e == 0) {
+                    break;
+                }
+                e--;
             }
+        }
+        console2.log("returning currentBalance", currentBalance);
         return currentBalance;
     }
 
     function getClaimable(uint256 _epoch) public view returns (uint256) {
+        console2.log("=============getClaimable _epoch", _epoch);
+        if (epochs.length == 0 || epochs.length <= _epoch) return 0;
         EpochInfo storage epoch = epochs[_epoch];
+        console2.log("epoch.epochRevenueFromSwapTaxCollectedETH", epoch.epochRevenueFromSwapTaxCollectedETH);
+        console2.log("epoch.epochTradingRevenueETH", epoch.epochTradingRevenueETH);
+        console2.log("epoch.epochTotalSupply", epoch.epochTotalSupply);
+        console2.log("epoch.getBalanceForEpoch(_epoch) ", getBalanceForEpoch(_epoch));
+//        console2.log(" getBalanceForEpoch(_epoch) * (epoch.epochRevenueFromSwapTaxCollectedETH + epoch.epochTradingRevenueETH)", getBalanceForEpoch(_epoch) * (epoch.epochRevenueFromSwapTaxCollectedETH + epoch.epochTradingRevenueETH);
         if (_epoch <= lastClaimedEpochs[msg.sender])
             return 0;
         else
-            return (getBalanceForEpoch(_epoch) * (epoch.epochRevenueFromSwapTaxCollectedETH + epoch.epochTradingRevenueETH)) / epoch.epochTotalSupply;
+            return getBalanceForEpoch(_epoch) * (epoch.epochRevenueFromSwapTaxCollectedETH + epoch.epochTradingRevenueETH) / epoch.epochTotalSupply;
     }
 
 
