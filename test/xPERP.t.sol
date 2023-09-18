@@ -17,7 +17,7 @@ interface IERC20 {
 /// https://book.getfoundry.sh/forge/writing-tests
 contract xPERPTest is PRBTest, StdCheats {
     xPERP internal xperp;
-    address constant teamTestWallet = 0x282e0D30DF3C7Ecb58430d31c1A28De4f9ee7F44;
+    address payable constant teamTestWallet = payable(0x282e0D30DF3C7Ecb58430d31c1A28De4f9ee7F44);
     IUniswapV2Pair internal uniswapV2Pair;
     IUniswapV2Router02 internal uniswapV2Router;
     address internal weth;
@@ -34,21 +34,6 @@ contract xPERPTest is PRBTest, StdCheats {
         assertEq(balance, 1_000_000e18, "balance mismatch");
     }
 
-    function fundPair(uint256 amountETHToUse, uint256 amountTokenToUse) public {
-        uniswapV2Pair = IUniswapV2Pair(xperp.uniswapV2Pair());
-        uniswapV2Router = IUniswapV2Router02(xperp.uniswapV2Router());
-        weth = uniswapV2Router.WETH();
-        xperp.approve(address(uniswapV2Router), 1_000_000e18);
-        uniswapV2Router.addLiquidityETH{value: amountETHToUse}(
-            address(xperp),
-            amountTokenToUse,
-            0,
-            0,
-            address(this),
-            block.timestamp
-        );
-    }
-
     /// @dev Total Supply check
     function testUniswapPairFund() public {
         // depositing 50 ether / 990_000 xperp
@@ -63,15 +48,9 @@ contract xPERPTest is PRBTest, StdCheats {
     /// @dev buy on uniswap, sell on uniswap for ether, taxes are correct
     function testSwap() public {
         //fund the pair
-        uint256 amountETHToUse = 10e18;
-        uint256 amountTokenToUse = 990_000e18;
-        fundPair(amountETHToUse, amountTokenToUse);
-
+        fundPair(50e18, 990_000e18);
         xperp.EnableTradingOnUniSwap();
 
-        amountETHToUse = 1e18;
-        uint256 balanceBeforeETH = address(this).balance;
-        uint256 balanceBeforeXPERP = xperp.balanceOf(address(this));
         address[] memory path = new address[](2);
         path[0] = weth;
         path[1] = address(xperp);
@@ -85,33 +64,44 @@ contract xPERPTest is PRBTest, StdCheats {
         }
 
         // Calculate expected XPERP
+        uint256 amountETHToUse = 1e17;
         uint256 amountInWithFee = amountETHToUse * 997;  // 0.3% fee is subtracted
         uint256 numerator = amountInWithFee * reserveB;
         uint256 denominator = reserveA * 1000 + amountInWithFee;  // 0.3% fee is added
         uint256 expectedXPERP = numerator / denominator;
 
         // Apply 5% tax, the formula is  expectedXPERPAfterTax = (expectedXPERP * 9500) / 10000;
-        uint256 expectedXPERPAfterTax = (numerator * 950) / (1000 * denominator);
-
-        uint256 contractBalanceBeforeSwap = xperp.balanceOf(address(xperp));
         // buy 1 ether worth of xperp
+        address payable user1 = payable(address(0x13));
+        user1.transfer(amountETHToUse);
+        vm.startPrank(user1);
         uniswapV2Router.swapExactETHForTokens{value: amountETHToUse}(
             0,
             path,
-            address(this),
+            user1,
             block.timestamp
         );
-        assertEq(address(this).balance, balanceBeforeETH - amountETHToUse, "ETH balance mismatch");
-        assertEq(expectedXPERPAfterTax, xperp.balanceOf(address(this)) - balanceBeforeXPERP, "XPERP balance mismatch");
+        vm.stopPrank();
+        assertThreshold((numerator * 950) / (1000 * denominator), xperp.balanceOf(user1), "XPERP balance mismatch");
+
+        //the contract gets 5% (all tax)
+        assertEq(xperp.balanceOf(address(xperp)), expectedXPERP * 50 / 1000, "Contract balance mismatch");
 
         //check taxes, team wallet gets 2%
-        assertEq(xperp.balanceOf(teamTestWallet), expectedXPERP * 20 / 1000, "team wallet balance mismatch");
-        //the contract gets 1% (revshare distribution) + 2%
-        assertEq(xperp.balanceOf(address(xperp)), contractBalanceBeforeSwap + expectedXPERP * 30 / 1000, "contract balance mismatch");
-        // check distribution 1% to the liquidity pair
-        assertEq(xperp.liquidityPairTaxCollectedNotYetInjectedXPERP(), expectedXPERP * 10 / 1000, "liquidityPairTaxCollectedNotYetInjected mismatch");
-        // 2% revenue share (the rest to avoid rounding errors)
-        assertEq(xperp.revenueSharesCollectedSinceLastEpochXPERP(), expectedXPERP * 20 / 1000, "liquidityPairTaxCollectedNotYetInjected mismatch");
+        // selling and sending for team wallet
+        path[0] = address(xperp);
+        path[1] = weth;
+        uint256 teamWalletAndRevenueShareEstimated = (expectedXPERP * (20 + 20)) / 1000;
+        uint256[] memory estimatedTeamWalletAndRevenueETH = uniswapV2Router.getAmountsOut(teamWalletAndRevenueShareEstimated, path);
+        uint256 estimatedTeamWalletETH = estimatedTeamWalletAndRevenueETH[estimatedTeamWalletAndRevenueETH.length - 1] / 2;
+//        uint256 estimatedRevShareETH = estimatedTeamWalletAndRevenueETH[estimatedTeamWalletAndRevenueETH.length - 1] / 2;
+        xperp.snapshot{value: 0}();
+        assertThreshold(estimatedTeamWalletETH, teamTestWallet.balance, "team wallet balance mismatch");
+
+        // check distribution 1% to the liquidity pair, - should be on the contract
+        assertEq(xperp.liquidityPairTaxCollectedNotYetInjectedXPERP(), expectedXPERP * 10 / 1000, "liquidityPairTaxCollectedNotYetInjectedXPERP mismatch");
+        assertEq(xperp.balanceOf(address(xperp)), expectedXPERP * 10 / 1000, "liquidityPairTaxCollectedNotYetInjected mismatch");
+
     }
 
     function testInjectLiquidity() public {
@@ -121,23 +111,29 @@ contract xPERPTest is PRBTest, StdCheats {
         fundPair(amountETHToUse, amountTokenToUse);
         xperp.EnableTradingOnUniSwap();
 
+
         // swap tokens to generate lp share 1%
         address[] memory path = new address[](2);
         path[0] = weth;
         path[1] = address(xperp);
-        uniswapV2Router.swapExactETHForTokens{value: 1e18}(
+        address payable user1 = payable(address(0x13));
+        user1.transfer(1e18);
+        vm.startPrank(user1);
+        uniswapV2Router.swapExactETHForTokens{value: 1e14}(
             0,
             path,
-            address(this),
+            user1,
             block.timestamp
         );
+        vm.stopPrank();
+        console2.log("swapped");
 
         // checking the amount of xperp that is a 1% lp tax
         uint lpShare = xperp.liquidityPairTaxCollectedNotYetInjectedXPERP();
+        console2.log("liquidityPairTaxCollectedNotYetInjectedXPERP", lpShare);
 
 
         (uint reserveA, uint reserveB,) = IUniswapV2Pair(xperp.uniswapV2Pair()).getReserves();
-        console2.log("liquidityPairTaxCollectedNotYetInjectedXPERP", lpShare);
         console2.log("xperp balance on the contract", xperp.balanceOf(address(xperp)));
         console2.log("reserveA", reserveA);
         console2.log("reserveB", reserveB);
@@ -163,12 +159,14 @@ contract xPERPTest is PRBTest, StdCheats {
 
     }
 
-    function testSnapshot() public {
+    function testSnapshotTradingTax() public {
         // depositing 20 eth and 990K xperp in the pair
         uint256 amountETHToUse = 20e18;
         uint256 amountTokenToUse = 990_000e18;
         fundPair(amountETHToUse, amountTokenToUse);
         xperp.EnableTradingOnUniSwap();
+        // this is a must to initialize epoch
+        xperp.snapshot{value: 0}();
 
         //several users
         address user1 = address(0x13);
@@ -190,26 +188,26 @@ contract xPERPTest is PRBTest, StdCheats {
             block.timestamp
         );
 
-        //make snapshot
-        uint256 tv = 10e18;
-        xperp.snapshot{value: tv}();
+        xperp.snapshot{value: 0}();
 
-//        xperp.transfer(user1, 1e18);
-        uniswapV2Router.swapExactETHForTokens{value: 1e18}(
-            0,
-            path,
-            address(this),
-            block.timestamp
-        );
-        uint256 tradingVolume = 10e18;
-        xperp.snapshot{value: tradingVolume}();
 
-        uint balanceBefore = xperp.balanceOf(user1);
+        uint balanceBefore = user1.balance;
+        vm.startPrank(user1);
         xperp.claimAll();
-        uint balanceAfter = xperp.balanceOf(user1);
-        console2.log("balanceBefore", balanceBefore);
-        console2.log("balanceAfter", balanceAfter);
-//        assertEq(balanceAfter - balanceBefore, 1e18, "balance mismatch");
+        vm.stopPrank();
+        uint balanceAfter = user1.balance;
+        console2.log("balanceChange", balanceAfter - balanceBefore);
+
+        xperp.snapshot{value: 10}();
+        balanceBefore = user1.balance;
+        vm.startPrank(user1);
+        xperp.claimAll();
+        vm.stopPrank();
+        balanceAfter = user1.balance;
+        console2.log("balanceChange2", balanceAfter - balanceBefore);
+
+        //        20853460472609082 * 20/1000
+//        assertEq(balanceAfter - balanceBefore, 41706920945218, "balance mismatch");
 
     }
 
@@ -239,9 +237,60 @@ contract xPERPTest is PRBTest, StdCheats {
         console2.log("balanceBefore", balanceBefore);
         console2.log("balanceAfter", balanceAfter);
 
-        uint total = 1_000_000;
+        uint total = 6000;
         uint share = 1 ether * 2000 / total;
         assertEq(balanceAfter - balanceBefore, share, "balance mismatch");
+    }
+
+
+    function testClaimAll() public {
+        xperp.snapshot{value: 0}();
+        //several users
+        address user1 = address(0x13);
+        address user2 = address(0x14);
+
+        //fund these wallet with xperp tokens
+        xperp.transfer(user1, 2000e18);
+        xperp.transfer(user2, 4000e18);
+        console2.log("EPOCH 1");
+        console2.log("balance", xperp.balanceOf(user1));
+        console2.log("user2 balance", xperp.balanceOf(user2));
+        console2.log("circulatingSupply", xperp.circulatingSupply());
+        xperp.snapshot{value: 1e18}();
+
+
+        xperp.transfer(user1, 2000e18);
+        console2.log("EPOCH 2");
+        console2.log("balance", xperp.balanceOf(user1));
+        console2.log("circulatingSupply", xperp.circulatingSupply());
+        xperp.snapshot{value: 1e18}();
+
+        vm.startPrank(user1);
+        xperp.transfer(user2, 1000e18);
+        vm.stopPrank();
+        console2.log("EPOCH 3");
+        console2.log("balance", xperp.balanceOf(user1));
+        console2.log("circulatingSupply", xperp.circulatingSupply());
+        xperp.snapshot{value: 1e18}();
+
+        uint balanceBefore = user1.balance;
+        vm.startPrank(user1);
+        xperp.claimAll();
+        vm.stopPrank();
+        uint balanceAfter = user1.balance;
+        console2.log("balanceBefore", balanceBefore);
+        console2.log("balanceAfter", balanceAfter);
+
+        // epoch 1, 20/60
+        uint total = 6000;
+        uint shareEpoch1 = 1 ether * 2000 / total;
+        // epoch 2, 40, 80
+        total = 8000;
+        uint shareEpoch2 = 1 ether * 4000 / total;
+        // epoch 3, 40, 80
+        total = 8000;
+        uint shareEpoch3 = 1 ether * 3000 / total;
+        assertEq(balanceAfter - balanceBefore, shareEpoch1 + shareEpoch2 + shareEpoch3, "balance mismatch");
     }
 
     /// @dev transfer to another address, no taxes are paid
@@ -274,5 +323,45 @@ contract xPERPTest is PRBTest, StdCheats {
         assertEq(actualBalance, expectedBalance);
     }
 
+    // ================= Helper functions =================
+
+    function fundPair(uint256 amountETHToUse, uint256 amountTokenToUse) public {
+        uniswapV2Pair = IUniswapV2Pair(xperp.uniswapV2Pair());
+        uniswapV2Router = IUniswapV2Router02(xperp.uniswapV2Router());
+        weth = uniswapV2Router.WETH();
+        xperp.approve(address(uniswapV2Router), 1_000_000e18);
+        uniswapV2Router.addLiquidityETH{value: amountETHToUse}(
+            address(xperp),
+            amountTokenToUse,
+            0,
+            0,
+            address(this),
+            block.timestamp
+        );
+    }
+
+
+    function assertThreshold(uint256 a, uint256 b, string memory err) internal {
+        //threshold is 1e-17, just to eliminate some rounding errors
+        uint256 threshold = 10;
+        if (a + threshold < b || b + threshold < a) {
+            emit Log("Error: a == b with threshold not satisfied");
+            emit Log(err);
+            emit LogNamedUint256("   Left", a);
+            emit LogNamedUint256("  Right", b);
+            fail();
+        }
+    }
+
+
     receive() external payable {}
 }
+
+///todo test multiple claims to avoid doubling
+// test swap eth to token and token to eth
+// test multiple claims in one epoch
+// test multiple claims in multiple epochs
+// test multiple claims in multiple epochs with transfers
+// test multiple claims in multiple epochs with transfers and revenue sharing
+// test multiple claims in multiple epochs with transfers and revenue sharing and liquidity injection
+// test multiple claims in multiple epochs with transfers and revenue sharing and liquidity injection and trading
