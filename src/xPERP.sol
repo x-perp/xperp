@@ -26,8 +26,7 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import {console2} from "forge-std/console2.sol";
-import "openzeppelin-contracts/contracts/token/ERC20/utils/TokenTimelock.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/TokenTimelock.sol";
 
 contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
 
@@ -100,7 +99,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     event Claimed(address indexed user, uint256 amount);
     event LiquidityAdded(uint256 amountToken, uint256 amountETH, uint256 liquidity);
     event ReceivedEther(address indexed from, uint256 amount);
-    event TaxChanged(uint256 tax, uint256 teamWalletTax);
+    event TaxChanged(uint256 tax, uint256 teamWalletTax, uint256 liquidityPairTax);
     event TaxActiveChanged(bool isActive);
 
     // ========== Modifiers ==========
@@ -135,11 +134,12 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         revenueDistributionBot = _revenueDistributionBot;
     }
 
-    function setTax(uint256 _tax, uint256 _teamWalletTax) external onlyOwner {
+    function setTax(uint256 _tax, uint256 _teamWalletTax, uint256 _liquidityPairTax) external onlyOwner {
         require(_tax >= 0 && _tax <= 500 && _teamWalletTax >= 0 && _teamWalletTax <= 500, "Invalid tax");
         totalTax = _tax;
         teamWalletTax = _teamWalletTax;
-        emit TaxChanged(_tax, _teamWalletTax);
+        liquidityPairTax = _liquidityPairTax;
+        emit TaxChanged(_tax, _teamWalletTax, _liquidityPairTax);
     }
 
     function setTaxActive(bool _isTaxActive) external onlyOwner {
@@ -258,18 +258,11 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         if (tokenAmount > 0)
             transfer(address(this), tokenAmount);
 
-        console2.log("liquidityPairTaxCollectedNotYetInjectedXPERP", liquidityPairTaxCollectedNotYetInjectedXPERP);
-        console2.log("tokenAmount", tokenAmount);
-
         // Tokens eligible for injection
         uint256 amountTokenToUse = (liquidityPairTaxCollectedNotYetInjectedXPERP + tokenAmount) / 2;
 
         //Swap TokenForEth
         uint256 ethAmount = swapXPERPToETH(amountTokenToUse);
-
-        console2.log("injectLiquidity amountTokenToUse", amountTokenToUse);
-        console2.log("injectLiquidity ethAmount", ethAmount);
-
 
         // Add liquidity using all the received tokens and remaining ETH
         (uint amountToken, uint amountETH, uint liquidity) = uniswapV2Router.addLiquidityETH{value: ethAmount}(
@@ -300,7 +293,6 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         uint256 finalETHBalance = address(this).balance;
         uint256 ETHReceived = finalETHBalance - initialETHBalance;
         emit SwappedToEth(_amount, ETHReceived);
-        console2.log("swapXPERPToETH ETHReceived", ETHReceived);
         return ETHReceived;
     }
 
@@ -336,16 +328,12 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
                 e--;
             }
         }
-        console2.log("returning getBalanceForEpoch _epoch", _epoch);
-        console2.log("returning getBalanceForEpoch  balance", currentBalance);
         return currentBalance;
     }
 
     function getClaimable(uint256 _epoch) public view returns (uint256) {
-        console2.log("=== getClaimable _epoch", _epoch);
         if (epochs.length == 0 || epochs.length <= _epoch) return 0;
         EpochInfo storage epoch = epochs[_epoch];
-        console2.log("epoch.epochTotalRevenueETH", epoch.epochSwapRevenueETH);
         if (_epoch <= lastClaimedEpochs[msg.sender] || epoch.epochTotalSupply == 0)
             return 0;
         else
