@@ -112,9 +112,15 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
 
     // ========== ERC20 ==========
 
-    constructor(address payable _teamWallet) ERC20("xperp", "") {
+    constructor(address payable _teamWallet) ERC20("xperp", "xperp") {
         require(_teamWallet != address(0), "Invalid team wallet");
         teamWallet = _teamWallet;
+        _mint(msg.sender, oneMillion);
+    }
+
+    // ========== Configuration ==========
+
+    function init() external onlyOwner {
         // creating the uniswap pair
         uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(
             address(this),
@@ -122,12 +128,9 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         );
         // approving uniswap router to spend xperp on behalf of the contract
         _approve(address(this), address(uniswapV2Router), type(uint256).max);
-        _mint(msg.sender, oneMillion);
         // initializing epochs, 1 is the first epoch.
         epochs.push();
     }
-
-    // ========== Configuration ==========
 
     function setRevenueDistributionBot(address _revenueDistributionBot) external onlyOwner {
         require(_revenueDistributionBot != address(0), "Invalid bot address");
@@ -253,7 +256,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     /// @dev this function uses 1% LP tax token collected from swaps, swaps tokens for ETH and adds this to liquidity pair.
     /// @dev There's also an option to transfer additional tokens and ETH to the contract, which will be used for liquidity injection
     /// @dev This function can be called by anyone
-    function injectLiquidity(uint256 tokenAmount) external botOrOwner payable {
+    function injectLiquidity(uint256 tokenAmount) external botOrOwner nonReentrant payable {
         require(balanceOf(address(this)) >= liquidityPairTaxCollectedNotYetInjectedXPERP, "Not enough tokens");
         if (tokenAmount > 0)
             transfer(address(this), tokenAmount);
@@ -276,6 +279,8 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         liquidityPairTaxCollectedNotYetInjectedXPERP = 0;
         emit LiquidityAdded(amountToken, amountETH, liquidity);
     }
+
+    // ========== Internal Functions ==========
 
     function swapXPERPToETH(uint256 _amount) internal returns (uint256) {
         if (_amount == 0) return 0;
