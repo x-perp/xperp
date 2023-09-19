@@ -2,6 +2,7 @@ name: "CI"
 
 env:
   MAINNET_NODE_URI: ${{ secrets.MAINNET_NODE_URI }}
+  API_KEY_ETHERSCAN: ${{ secrets.API_KEY_ETHERSCAN }}
   FOUNDRY_PROFILE: "ci"
 
 on:
