@@ -26,7 +26,12 @@ https://xperp.tech
 Foundry-based Solidity smart contract.
 
 ## Deployed Contract
+Mainnet:
 [0xeec8bfa44e68bd9d4f2dd548346207bf1d8bbd0d](https://etherscan.io/address/0xeec8bfa44e68bd9d4f2dd548346207bf1d8bbd0d)
+
+Goerli testnet:
+[0xfC6ca7006a75B5213EAdbc2Cc87284bE4F3172C9](https://goerli.etherscan.io/address/0xfc6ca7006a75b5213eadbc2cc87284be4f3172c9
+)
 
 ## Liquidity Pair xperp/WETH
 https://v2.info.uniswap.org/pair/0xf4b213439cd3e86d0939d3fc6c46fd7a4ea579e4
