@@ -37,7 +37,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
 
     // 1% of total supply, max tranfer amount possible
     uint256 public walletBalanceLimit = 10_000 * 1 ether;
-    uint256 public sellBalanceLimit = 10_000 * 1 ether;
+    uint256 public sellLimit = 10_000 * 1 ether;
 
     // Taxation
     uint256 public totalTax = 500;
@@ -157,9 +157,9 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         walletBalanceLimit = _walletBalanceLimit;
     }
 
-    function setSellBalanceLimit(uint256 _sellBalanceLimit) external onlyOwner {
-        require(_sellBalanceLimit >= 0 && _sellBalanceLimit <= oneMillion, "Invalid sell balance limit");
-        sellBalanceLimit = _sellBalanceLimit;
+    function setSellLimit(uint256 _sellLimit) external onlyOwner {
+        require(_sellLimit >= 0 && _sellLimit <= oneMillion, "Invalid sell balance limit");
+        sellLimit = _sellLimit;
     }
 
     function updateTeamWallet(address payable _teamWallet) external onlyOwner {
@@ -207,26 +207,28 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         uint256 amountAfterTax = amount;
         // calculate 5% swap tax
         // owner() is an exception to fund the liquidity pair and revenueDistributionBot as well to fund the revenue distribution to holders
-        if (isTaxActive && isTradingTransfer) {
+        if (isTradingTransfer) {
             require(isTradingEnabled, "Trading is not enabled yet");
             // Buying tokens
             if (from == uniswapV2Pair && walletBalanceLimit > 0) {
                 require(balanceOf(to) + amount <= walletBalanceLimit, "Holding amount after buying exceeds maximum allowed tokens.");
             }
             // Selling tokens
-            if (to == uniswapV2Pair && sellBalanceLimit > 0) {
-                require(amount <= sellBalanceLimit, "Selling amount exceeds maximum allowed tokens.");
+            if (to == uniswapV2Pair && sellLimit > 0) {
+                require(amount <= sellLimit, "Selling amount exceeds maximum allowed tokens.");
             }
             // 5% total tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
             // we get
-            uint256 taxAmountXPERP = (amount * totalTax) / hundredPercent;
-            super._transfer(from, address(this), taxAmountXPERP);
-            amountAfterTax -= taxAmountXPERP;
-            swapTaxCollectedTotalXPERP += taxAmountXPERP;
+            if (isTaxActive) {
+                uint256 taxAmountXPERP = (amount * totalTax) / hundredPercent;
+                super._transfer(from, address(this), taxAmountXPERP);
+                amountAfterTax -= taxAmountXPERP;
+                swapTaxCollectedTotalXPERP += taxAmountXPERP;
 
-            // 1% to LP, counting and keeping on the contract in xperp
-            uint256 lpShareXPERP = (amount * liquidityPairTax) / hundredPercent;
-            liquidityPairTaxCollectedNotYetInjectedXPERP += lpShareXPERP;
+                // 1% to LP, counting and keeping on the contract in xperp
+                uint256 lpShareXPERP = (amount * liquidityPairTax) / hundredPercent;
+                liquidityPairTaxCollectedNotYetInjectedXPERP += lpShareXPERP;
+            }
         }
         super._transfer(from, to, amountAfterTax);
     }
