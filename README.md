@@ -26,16 +26,36 @@ https://xperp.tech
 Foundry-based Solidity smart contract.
 
 ## Deployed Contract
+
 Mainnet:
 [0xeec8bfa44e68bd9d4f2dd548346207bf1d8bbd0d](https://etherscan.io/address/0xeec8bfa44e68bd9d4f2dd548346207bf1d8bbd0d)
 
 Goerli testnet:
-[0xfC6ca7006a75B5213EAdbc2Cc87284bE4F3172C9](https://goerli.etherscan.io/address/0xfc6ca7006a75b5213eadbc2cc87284be4f3172c9
-)
+[0x0ba4AA1005eA9376d1d3430Dd69dB5fF77055a74](https://goerli.etherscan.io/address/0x0ba4AA1005eA9376d1d3430Dd69dB5fF77055a74)
+
+## Deployment procedure
+
+1. Deploy the xperp token contract setting the team wallet.
+2. Configure revsharebot address.
+3. Run `init()` to initialize epochs and the LP.
+4. Sending the dedicated owner 1M tokens which is a fixed totalsupply (before 5**!**).
+5. Ownership transfer to the launcher.
+6. The launcher puts xperp along with ETH to the liquidity pair.
+6. Executing`EnableTradingOnUniswap` function.
+
+Guillaume, [16 Sep 2023 15:52:55]:
+yep
+
+## Addresses
+
+- revsharebot: 0x87d71b3756A1e9c3117eEc8a79380926f66b80C3
+- owner: 0x01C993013d761E513e0A30F99058A4d11783694b
+- team: 0x636595fA76b914462AC62A3fA2e0393F932BF9c4
 
 ## Liquidity Pair xperp/WETH
-https://v2.info.uniswap.org/pair/0xf4b213439cd3e86d0939d3fc6c46fd7a4ea579e4
 
+Mainnnet:
+https://v2.info.uniswap.org/pair/0xf4b213439cd3e86d0939d3fc6c46fd7a4ea579e4
 
 ## What's Inside
 
@@ -52,6 +72,7 @@ https://v2.info.uniswap.org/pair/0xf4b213439cd3e86d0939d3fc6c46fd7a4ea579e4
 $ pnpm install # install Solhint, Prettier, and other Node.js deps
 $ forge test --fork-url  YOUR_MAINNET_NODE_URL -vvvv --gas-report
 ```
+
 All tests should pass, and you should see a gas report at the end.
 Test are executed against a mainnet fork to keep a real uniswap pair mirror, and to test the revenue sharing feature.
 

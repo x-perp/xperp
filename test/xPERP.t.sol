@@ -105,13 +105,69 @@ contract xPERPTest is PRBTest, StdCheats {
 
     }
 
+    function testBuySell() public {
+        //fund the pair
+        fundPair(5e17, 970_000e18);
+        xperp.EnableTradingOnUniSwap();
+
+        address[] memory path = new address[](2);
+        path[0] = weth;
+        path[1] = address(xperp);
+
+        // Fetch reserves
+        (uint reserveA, uint reserveB,) = uniswapV2Pair.getReserves();
+        // Make sure reserveA corresponds to ETH and reserveB to XPERP
+        address token0 = uniswapV2Pair.token0();
+        if (token0 == address(xperp)) {
+            (reserveA, reserveB) = (reserveB, reserveA);
+        }
+
+        // Calculate expected XPERP
+        uint256 amountETHToUse = 0.005 * 1e18;
+        uint256 amountInWithFee = amountETHToUse * 997;  // 0.3% fee is subtracted
+        uint256 numerator = amountInWithFee * reserveB;
+        uint256 denominator = reserveA * 1000 + amountInWithFee;  // 0.3% fee is added
+        uint256 expectedXPERP = numerator / denominator;
+
+        // Apply 5% tax, the formula is  expectedXPERPAfterTax = (expectedXPERP * 9500) / 10000;
+        // buy 1 ether worth of xperp
+        address payable user1 = payable(address(0x13));
+        user1.transfer(amountETHToUse);
+        vm.startPrank(user1);
+
+        uint256[] memory amountOut = uniswapV2Router.getAmountsOut(amountETHToUse, path);
+        console2.log("amountOut", amountOut[amountOut.length - 1]);
+
+        uniswapV2Router.swapExactETHForTokens{value: amountETHToUse}(
+            0,
+            path,
+            user1,
+            block.timestamp
+        );
+
+        address[] memory path2 = new address[](2);
+        path2[1] = weth;
+        path2[0] = address(xperp);
+
+        xperp.approve(address(uniswapV2Router), xperp.balanceOf(user1));
+        uniswapV2Router.swapExactTokensForETH(
+            xperp.balanceOf(user1),
+            0,
+            path2,
+            user1,
+            block.timestamp
+        );
+
+        vm.stopPrank();
+
+    }
+
     function testInjectLiquidity() public {
         // depositing 20 eth and 990K xperp in the pair
         uint256 amountETHToUse = 20e18;
         uint256 amountTokenToUse = 990_000e18;
         fundPair(amountETHToUse, amountTokenToUse);
         xperp.EnableTradingOnUniSwap();
-
 
         // swap tokens to generate lp share 1%
         address[] memory path = new address[](2);

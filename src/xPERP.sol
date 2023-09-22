@@ -37,6 +37,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
 
     // 1% of total supply, max tranfer amount possible
     uint256 public walletBalanceLimit = 10_000 * 1 ether;
+    uint256 public sellBalanceLimit = 10_000 * 1 ether;
 
     // Taxation
     uint256 public totalTax = 500;
@@ -115,6 +116,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     constructor(address payable _teamWallet) ERC20("xperp", "xperp") {
         require(_teamWallet != address(0), "Invalid team wallet");
         teamWallet = _teamWallet;
+        revenueDistributionBot = msg.sender;
         _mint(msg.sender, oneMillion);
     }
 
@@ -153,6 +155,11 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     function setWalletBalanceLimit(uint256 _walletBalanceLimit) external onlyOwner {
         require(_walletBalanceLimit >= 0 && _walletBalanceLimit <= oneMillion, "Invalid wallet balance limit");
         walletBalanceLimit = _walletBalanceLimit;
+    }
+
+    function setSellBalanceLimit(uint256 _sellBalanceLimit) external onlyOwner {
+        require(_sellBalanceLimit >= 0 && _sellBalanceLimit <= oneMillion, "Invalid sell balance limit");
+        sellBalanceLimit = _sellBalanceLimit;
     }
 
     function updateTeamWallet(address payable _teamWallet) external onlyOwner {
@@ -202,8 +209,14 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         // owner() is an exception to fund the liquidity pair and revenueDistributionBot as well to fund the revenue distribution to holders
         if (isTaxActive && isTradingTransfer) {
             require(isTradingEnabled, "Trading is not enabled yet");
-            address holder = from == uniswapV2Pair ? to : from;
-            require(balanceOf(holder) + amount <= walletBalanceLimit, "Holding amount exceeds maximum allowed tokens.");
+            // Buying tokens
+            if (from == uniswapV2Pair && walletBalanceLimit > 0) {
+                require(balanceOf(to) + amount <= walletBalanceLimit, "Holding amount after buying exceeds maximum allowed tokens.");
+            }
+            // Selling tokens
+            if (to == uniswapV2Pair && sellBalanceLimit > 0) {
+                require(amount <= sellBalanceLimit, "Selling amount exceeds maximum allowed tokens.");
+            }
             // 5% total tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
             // we get
             uint256 taxAmountXPERP = (amount * totalTax) / hundredPercent;
