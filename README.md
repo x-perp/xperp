@@ -31,7 +31,7 @@ Mainnet:
 [0xeec8bfa44e68bd9d4f2dd548346207bf1d8bbd0d](https://etherscan.io/address/0xeec8bfa44e68bd9d4f2dd548346207bf1d8bbd0d)
 
 Goerli testnet:
-[0x0ba4AA1005eA9376d1d3430Dd69dB5fF77055a74](https://goerli.etherscan.io/address/0x0ba4AA1005eA9376d1d3430Dd69dB5fF77055a74)
+[0xca349943b533380233639ad5f415eff1c1ee67cb](https://goerli.etherscan.io/address/0xca349943b533380233639ad5f415eff1c1ee67cb)
 
 ## Deployment procedure
 
