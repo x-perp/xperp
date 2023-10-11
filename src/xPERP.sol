@@ -12,9 +12,9 @@ pragma solidity ^0.8.21;
 // https://twitter.com/xperptech
 // https://xperp.tech
 // =====================================
-// - Fair Launch: 99% of the token supply was added to liquidity at launch.
+// - Tokenomics: 35% in LP, 10% to Team, 5% to Collateral Partners, 49% for future airdrops
 // - Partnership: 1% has been sold to Handz of Gods.
-// - Supply: 1M tokens, fully circulating and non-dilutive.
+// - Supply: 1M tokens
 // - Tax: 3.5% tax on xperp traded (0.5% to LP, 1.5% to revenue share, 1.5% to team and operating expenses).
 // - Revenue Sharing: 30% of trading revenue goes to holders.
 // - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
@@ -53,6 +53,9 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     // address of the revenue distribution bot
     address public revenueDistributionBot;
 
+    // address of the vesting contract
+    address public vestingContract;
+
     // team wallet
     address payable public teamWallet;
 
@@ -65,11 +68,16 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     // total swap tax collected, completely distributed among token holders, for analytical purposes only
     uint256 public swapTaxCollectedTotalXPERP;
 
-    // revenue sharing tax collected for the distribution in the current snapshot (total tax less liquidity and team pair tax)
-    uint256 public revShareCurrentEpochXPERP;
+    // revenue sharing tax collected for the distribution in the current snapshot (total tax less liquidity shares)
+    uint256 public revShareAndTeamCurrentEpochXPERP;
 
     // revenue sharing tax collected, completely distributed among token holders, for analytical purposes only
     uint256 public tradingRevenueDistributedTotalETH;
+
+    // snipers wallets
+    mapping(address => bool) public earlySnipers;
+    // launch phase where snipers take additional burden during the first block
+    bool public launch = true;
 
     // Revenue sharing distribution info, 1 is the first epoch.
     struct EpochInfo {
@@ -142,6 +150,11 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         revenueDistributionBot = _revenueDistributionBot;
     }
 
+    function setVestingContract(address _vestingContract) external onlyOwner {
+        require(_vestingContract != address(0), "Invalid vesting contract address");
+        vestingContract = _vestingContract;
+    }
+
     function setTax(uint256 _tax, uint256 _teamWalletTax, uint256 _liquidityPairTax) external onlyOwner {
         require(_tax >= 0 && _tax <= 500 && _teamWalletTax >= 0 && _teamWalletTax <= 500, "Invalid tax");
         totalTax = _tax;
@@ -188,6 +201,14 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         _unpause();
     }
 
+    function updateEarlySniper(address _sniper, bool _isSniper) external onlyOwner {
+        earlySnipers[_sniper] = _isSniper;
+    }
+
+    function setLaunch(bool _launch) external onlyOwner {
+        launch = _launch;
+    }
+
     // ========== ERC20 Overrides ==========
     /// @dev overriden ERC20 transfer to tax on transfers to and from the uniswap pair, xperp is swapped to ETH and prepared for snapshot distribution
     function _transfer(address from, address to, uint256 amount) internal override {
@@ -196,7 +217,8 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
             msg.sender != address(uniswapV2Router) &&
             from != address(this) && to != address(this) &&
             from != owner() && to != owner() &&
-            from != revenueDistributionBot && to != revenueDistributionBot;
+            from != revenueDistributionBot && to != revenueDistributionBot &&
+            from != vestingContract && to != vestingContract;
 
         require(isTradingEnabled || !isTradingTransfer, "Trading is not enabled yet");
 
@@ -220,8 +242,13 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
             }
             // 5% total tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
             // we get
+            if (launch) {
+                earlySnipers[to] = true;
+            }
+            uint256 tax = earlySnipers[from] ? 5000 : totalTax;
+
             if (isTaxActive) {
-                uint256 taxAmountXPERP = (amount * totalTax) / hundredPercent;
+                uint256 taxAmountXPERP = (amount * tax) / hundredPercent;
                 super._transfer(from, address(this), taxAmountXPERP);
                 amountAfterTax -= taxAmountXPERP;
                 swapTaxCollectedTotalXPERP += taxAmountXPERP;
@@ -230,7 +257,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
                 uint256 lpShareXPERP = (amount * liquidityPairTax) / hundredPercent;
                 liquidityPairTaxCollectedNotYetInjectedXPERP += lpShareXPERP;
 
-                revShareCurrentEpochXPERP += taxAmountXPERP - lpShareXPERP;
+                revShareAndTeamCurrentEpochXPERP += taxAmountXPERP - lpShareXPERP;
             }
         }
         super._transfer(from, to, amountAfterTax);
@@ -243,26 +270,25 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         EpochInfo storage epoch = epochs[epochs.length - 1];
         epoch.epochTimestamp = block.timestamp;
         uint256 _circulatingSupply = circulatingSupply();
-        uint256 xperpToSwap = revShareCurrentEpochXPERP;
+        uint256 xperpToSwap = revShareAndTeamCurrentEpochXPERP;
 
         require(xperpToSwap > 0 || msg.value > 0, "No tax collected yet and no ETH sent");
         require(balanceOf(address(this)) >= xperpToSwap, "Balance less than required");
-        uint256 totalTaxETH = xperpToSwap > 0 ? swapXPERPToETH(xperpToSwap) : 0;
+        uint256 revAndTeamETH = xperpToSwap > 0 ? swapXPERPToETH(xperpToSwap) : 0;
 
         // 1.5% to team and operating expenses distributed immediately
-        uint256 teamWalletTaxAmountETH = (totalTaxETH * teamWalletTax) / (totalTax - liquidityPairTax);
-
+        uint256 teamWalletTaxAmountETH = (revAndTeamETH * teamWalletTax) / (totalTax - liquidityPairTax);
+        uint256 epochSwapRevenueETH = revAndTeamETH - teamWalletTaxAmountETH;
         teamWallet.transfer(teamWalletTaxAmountETH);
-        // the rest (2%) in ETH is kept on the contract for revenue share distribution
-        // amount_4% * 2%/4% = amount_2%
+        // the rest in ETH is kept on the contract for revenue share distribution
         epoch.epochCirculatingSupply = _circulatingSupply;
         epoch.epochTradingRevenueETH = msg.value;
         epoch.epochRevenueFromSwapTaxCollectedXPERP = xperpToSwap;
-        epoch.epochSwapRevenueETH = totalTaxETH;
-        emit Snapshot(epochs.length, _circulatingSupply, totalTaxETH, msg.value);
+        epoch.epochSwapRevenueETH = epochSwapRevenueETH;
+        emit Snapshot(epochs.length, _circulatingSupply, epochSwapRevenueETH, msg.value);
 
         epochs.push();
-        revShareCurrentEpochXPERP = 0;
+        revShareAndTeamCurrentEpochXPERP = 0;
     }
 
     function claimAll() public nonReentrant {
@@ -290,7 +316,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         //Swap TokenForEth
         uint256 ethAmount = swapXPERPToETH(amountTokenToUse);
         // Add liquidity using all the received tokens and remaining ETH
-        (uint amountToken, uint amountETH, uint liquidity) = uniswapV2Router.addLiquidityETH{value: ethAmount}(
+        (uint256 amountToken, uint256 amountETH, uint256 liquidity) = uniswapV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
             amountTokenToUse,
             0,
@@ -376,7 +402,23 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     }
 
     function circulatingSupply() public view returns (uint256) {
-        uint distributorBalance = owner() == revenueDistributionBot ? 0 : balanceOf(revenueDistributionBot);
-        return totalSupply() - balanceOf(address(this)) - balanceOf(uniswapV2Pair) - balanceOf(owner()) - distributorBalance;
+        uint256 distributorBalance = owner() == revenueDistributionBot ? 0 : balanceOf(revenueDistributionBot);
+        uint256 vestingBalance = address(0) == vestingContract ? 0 : balanceOf(vestingContract);
+        return totalSupply() - balanceOf(address(this)) - balanceOf(uniswapV2Pair) - balanceOf(owner()) - distributorBalance - vestingBalance;
     }
+
+    function getEpochsPassed() public view returns (uint256) {
+        return epochs.length;
+    }
+
+    function getDepositedInEpoch(uint256 epochIndex, address userAddress) public view returns (uint256) {
+        require(epochIndex < epochs.length, "Invalid epoch index");
+        return epochs[epochIndex].depositedInEpoch[userAddress];
+    }
+
+    function getWithdrawnInEpoch(uint256 epochIndex, address userAddress) public view returns (uint256) {
+        require(epochIndex < epochs.length, "Invalid epoch index");
+        return epochs[epochIndex].withdrawnInEpoch[userAddress];
+    }
+
 }

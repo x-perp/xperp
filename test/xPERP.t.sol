@@ -50,6 +50,7 @@ contract xPERPTest is PRBTest, StdCheats {
         //fund the pair
         fundPair(50e18, 990_000e18);
         xperp.EnableTradingOnUniSwap();
+        xperp.setLaunch(false);
 
         address[] memory path = new address[](2);
         path[0] = weth;
@@ -98,6 +99,25 @@ contract xPERPTest is PRBTest, StdCheats {
         uint256 estimatedTeamWalletETH = estimatedTeamWalletAndRevenueETH[estimatedTeamWalletAndRevenueETH.length - 1] / 2;
 //        uint256 estimatedRevShareETH = estimatedTeamWalletAndRevenueETH[estimatedTeamWalletAndRevenueETH.length - 1] / 2;
         xperp.snapshot{value: 0}();
+
+        uint epochs = xperp.getEpochsPassed();
+
+        console2.log("getBalanceForEpochOf", xperp.getBalanceForEpochOf(user1, 1));
+        (uint epochTimestamp,
+            uint epochCirculatingSupply,
+            uint epochRevenueFromSwapTaxCollectedXPERP,
+            uint epochSwapRevenueETH,
+            uint epochTradingRevenueETH) = xperp.epochs(1);
+
+        console2.log("epochs length", epochs);
+        console2.log("epochTimestamp", epochTimestamp);
+        console2.log("epochCirculatingSupply", epochCirculatingSupply);
+        console2.log("epochRevenueFromSwapTaxCollectedXPERP", epochRevenueFromSwapTaxCollectedXPERP);
+        console2.log("epochSwapRevenueETH", epochSwapRevenueETH);
+        console2.log("epochTradingRevenueETH", epochTradingRevenueETH);
+        console2.log("getClaimable", xperp.getClaimableOf(user1, 1));
+        console2.log("contract balance", address(xperp).balance);
+
         assertThreshold(estimatedTeamWalletETH, teamTestWallet.balance, "team wallet balance mismatch");
 
         // check distribution 1% to the liquidity pair, - should be on the contract
@@ -124,8 +144,8 @@ contract xPERPTest is PRBTest, StdCheats {
 
         // Calculate expected XPERP
         uint256 amountETHToUse = 0.005 * 1e18;
-        uint256 amountInWithFee = amountETHToUse * 997;  // 0.3% fee is subtracted
-        uint256 numerator = amountInWithFee * reserveB;
+//        uint256 amountInWithFee = amountETHToUse * 997;  // 0.3% fee is subtracted
+//        uint256 numerator = amountInWithFee * reserveB;
 //        uint256 denominator = reserveA * 1000 + amountInWithFee;  // 0.3% fee is added
 //        uint256 expectedXPERP = numerator / denominator;
 
@@ -157,7 +177,6 @@ contract xPERPTest is PRBTest, StdCheats {
             user1,
             block.timestamp
         );
-
         vm.stopPrank();
 
     }
@@ -346,6 +365,65 @@ contract xPERPTest is PRBTest, StdCheats {
         total = 8000;
         uint shareEpoch3 = 1 ether * 3000 / total;
         assertEq(balanceAfter - balanceBefore, shareEpoch1 + shareEpoch2 + shareEpoch3, "balance mismatch");
+    }
+
+
+    function testRounding() public {
+        //several users
+        uint amountETHToSwap = 88491686157852670;
+        address payable user1 = payable(address(0x13));
+        user1.transfer(amountETHToSwap);
+
+        //fund the pair
+        fundPair(3e18, 350_000e18);
+        xperp.EnableTradingOnUniSwap();
+
+        //        user 1 - bought 9999 tokens
+        address[] memory path = new address[](2);
+        path[0] = weth;
+        path[1] = address(xperp);
+        vm.startPrank(user1);
+        xperp.approve(address(uniswapV2Router), 1_000_000e18);
+        uniswapV2Router.swapExactETHForTokens{value: amountETHToSwap}(
+            0,
+            path,
+            user1,
+            block.timestamp
+        );
+        vm.stopPrank();
+        console2.log("user1 balance", xperp.balanceOf(user1));
+        //    did snapshot 1
+        xperp.snapshot();
+
+        console2.log("epoch 1");
+        uint epochs = xperp.getEpochsPassed();
+
+        console2.log("getBalanceForEpochOf", xperp.getBalanceForEpochOf(user1, 1));
+        (uint epochTimestamp,
+            uint epochCirculatingSupply,
+            uint epochRevenueFromSwapTaxCollectedXPERP,
+            uint epochSwapRevenueETH,
+            uint epochTradingRevenueETH) = xperp.epochs(1);
+
+        console2.log("epochs length", epochs);
+        console2.log("epochTimestamp", epochTimestamp);
+        console2.log("epochCirculatingSupply", epochCirculatingSupply);
+        console2.log("epochRevenueFromSwapTaxCollectedXPERP", epochRevenueFromSwapTaxCollectedXPERP);
+        console2.log("epochSwapRevenueETH", epochSwapRevenueETH);
+        console2.log("epochTradingRevenueETH", epochTradingRevenueETH);
+        console2.log("getClaimable", xperp.getClaimableOf(user1, 1));
+        console2.log("contract balance", address(xperp).balance);
+
+
+        //    unable to claim 0.001357148539962383eth as i was the only owner so would have been able to claim it
+        vm.startPrank(user1);
+        xperp.claimAll();
+        vm.stopPrank();
+//
+//    user 2 - 0x49Eb106090BAb40748958f536114BaD1ac4F6450
+//    bought 5000 tokens
+//    did snapshot 2 added 0.00069803073015435eth to contract
+//    unable to claim
     }
 
     /// @dev transfer to another address, no taxes are paid
