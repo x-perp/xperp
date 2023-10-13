@@ -30,7 +30,7 @@ Mainnet:
 [0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725](https://etherscan.io/address/0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725)
 
 Goerli testnet:
-[0x30383405561100f62Fa729869557a84F749fc469](https://goerli.etherscan.io/address/0x30383405561100f62Fa729869557a84F749fc469)
+[0x1d4486905c78C63507B5764Dc9045a46C5FF0291](https://goerli.etherscan.io/address/0x1d4486905c78C63507B5764Dc9045a46C5FF0291)
 
 ## Deployment procedure
 
@@ -51,7 +51,7 @@ Goerli testnet:
 ## Liquidity Pair xperp/WETH
 
 Mainnnet:
-https://v2.info.uniswap.org/pair/0xf4b213439cd3e86d0939d3fc6c46fd7a4ea579e4
+https://etherscan.io/address/0xE1e92c70617C86Ac10b3bc50F65b2fA752153d46
 
 ## What's Inside
 
