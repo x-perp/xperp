@@ -26,6 +26,7 @@ contract xPERPTest is PRBTest, StdCheats {
     function setUp() public virtual {
         // Instantiate the contract-under-test.
         xperp = new xPERP(teamTestWallet);
+        xperp.init();
     }
 
     /// @dev Total Supply check

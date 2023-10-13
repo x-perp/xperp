@@ -15,23 +15,22 @@ https://xperp.tech
    /_/\_\_|   |_____|_| \_\_|
  Go long or short with leverage on @friendtech keys via Telegram
  ==============================================================
- - Fair Launch: 99% of the token supply was added to liquidity at launch.
- - Partnership: 1% has been sold to Handz of Gods.
- - Supply: 1M tokens, fully circulating and non-dilutive.
- - Tax: 5% tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
- - Revenue Sharing: 30% of trading revenue goes to holders. xperp earns 2% of all trading volume.
- - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
+// - Tokenomics: 35% in LP, 10% to Team, 5% to Collateral Partners, 49% for future airdrops
+// - Partnership: 1% has been sold to Handz of Gods.
+// - Supply: 1M tokens
+// - Tax: 3.5% tax on xperp traded (0.5% burned, 1.5% to revenue share, 1.5% to team and operating expenses).
+// - Revenue Sharing: 30% of trading revenue goes to holders.
+// - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
 ```
-
 Foundry-based Solidity smart contract.
 
 ## Deployed Contract
 
 Mainnet:
-[0xeec8bfa44e68bd9d4f2dd548346207bf1d8bbd0d](https://etherscan.io/address/0xeec8bfa44e68bd9d4f2dd548346207bf1d8bbd0d)
+[0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725](https://etherscan.io/address/0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725)
 
 Goerli testnet:
-[0xca349943b533380233639ad5f415eff1c1ee67cb](https://goerli.etherscan.io/address/0xca349943b533380233639ad5f415eff1c1ee67cb)
+[0x30383405561100f62Fa729869557a84F749fc469](https://goerli.etherscan.io/address/0x30383405561100f62Fa729869557a84F749fc469)
 
 ## Deployment procedure
 
@@ -43,14 +42,11 @@ Goerli testnet:
 6. The launcher puts xperp along with ETH to the liquidity pair.
 6. Executing`EnableTradingOnUniswap` function.
 
-Guillaume, [16 Sep 2023 15:52:55]:
-yep
-
 ## Addresses
 
 - revsharebot: 0x87d71b3756A1e9c3117eEc8a79380926f66b80C3
-- owner: 0x01C993013d761E513e0A30F99058A4d11783694b
-- team: 0x636595fA76b914462AC62A3fA2e0393F932BF9c4
+- owner: 0x11eD88f6eE21F5808EB4B37D8292c57dc3Cc5e19
+- team: 0x1746CF93F3368B4326423a82734A0ECC65D57bC5
 
 ## Liquidity Pair xperp/WETH
 
@@ -75,6 +71,10 @@ $ forge test --fork-url  YOUR_MAINNET_NODE_URL -vvvv --gas-report
 
 All tests should pass, and you should see a gas report at the end.
 Test are executed against a mainnet fork to keep a real uniswap pair mirror, and to test the revenue sharing feature.
+
+## More Information
+
+https://linktr.ee/xperptech
 
 ## License
 

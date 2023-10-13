@@ -26,7 +26,6 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/TokenTimelock.sol";
 
 contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
 
@@ -40,6 +39,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
     uint256 public sellLimit = 10_000 * 1 ether;
 
     // Taxation
+    uint256 public heavyTax = 4000;
     uint256 public totalTax = 350;
     uint256 public liquidityPairTax = 50;
     uint256 public teamWalletTax = 150;
@@ -132,6 +132,9 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         teamWallet = _teamWallet;
         revenueDistributionBot = msg.sender;
         _mint(msg.sender, oneMillion);
+    }
+
+    function init() external onlyOwner {
         uniswapV2Pair = IUniswapV2Factory(uniswapV2Router.factory()).createPair(
             address(this),
             uniswapV2Router.WETH()
@@ -155,9 +158,10 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         vestingContract = _vestingContract;
     }
 
-    function setTax(uint256 _tax, uint256 _teamWalletTax, uint256 _liquidityPairTax) external onlyOwner {
-        require(_tax >= 0 && _tax <= 500 && _teamWalletTax >= 0 && _teamWalletTax <= 500, "Invalid tax");
+    function setTax(uint256 _tax, uint256 _heavyTax, uint256 _teamWalletTax, uint256 _liquidityPairTax) external onlyOwner {
+        require(_tax <= 500 && _heavyTax < 5000 && _teamWalletTax >= 0 && _teamWalletTax <= 500, "Invalid tax");
         totalTax = _tax;
+        heavyTax = _heavyTax;
         teamWalletTax = _teamWalletTax;
         liquidityPairTax = _liquidityPairTax;
         emit TaxChanged(_tax, _teamWalletTax, _liquidityPairTax);
@@ -235,6 +239,9 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
             // Buying tokens
             if (from == uniswapV2Pair && walletBalanceLimit > 0) {
                 require(balanceOf(to) + amount <= walletBalanceLimit, "Holding amount after buying exceeds maximum allowed tokens.");
+                if (launch) {
+                    earlySnipers[to] = true;
+                }
             }
             // Selling tokens
             if (to == uniswapV2Pair && sellLimit > 0) {
@@ -242,10 +249,7 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
             }
             // 5% total tax on xperp traded (1% to LP, 2% to revenue share, 2% to team and operating expenses).
             // we get
-            if (launch) {
-                earlySnipers[to] = true;
-            }
-            uint256 tax = earlySnipers[from] ? 5000 : totalTax;
+            uint256 tax = earlySnipers[from] ? heavyTax : totalTax;
 
             if (isTaxActive) {
                 uint256 taxAmountXPERP = (amount * tax) / hundredPercent;
@@ -316,12 +320,13 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         //Swap TokenForEth
         uint256 ethAmount = swapXPERPToETH(amountTokenToUse);
         // Add liquidity using all the received tokens and remaining ETH
+        // The owner is a receiver of the liquidity tokens
         (uint256 amountToken, uint256 amountETH, uint256 liquidity) = uniswapV2Router.addLiquidityETH{value: ethAmount}(
             address(this),
             amountTokenToUse,
             0,
             ethAmount,
-            msg.sender,
+            owner(),
             block.timestamp
         );
         liquidityPairTaxCollectedNotYetInjectedXPERP = 0;
