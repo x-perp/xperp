@@ -20,12 +20,23 @@ pragma solidity ^0.8.21;
 // - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+
+import "@oz-upgradeable/security/PausableUpgradeable.sol";
+import "@oz-upgradeable/access/OwnableUpgradeable.sol";
+import "@oz-upgradeable/proxy/utils/Initializable.sol";
+import "@oz-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
+import "@oz/proxy/ERC1967/ERC1967Proxy.sol";
+
+contract UUPSProxy is ERC1967Proxy {
+    constructor(address _implementation, bytes memory _data)
+    ERC1967Proxy(_implementation, _data)
+    {}
+}
 
 contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
 

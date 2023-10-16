@@ -22,6 +22,7 @@ https://xperp.tech
 // - Revenue Sharing: 30% of trading revenue goes to holders.
 // - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
 ```
+
 Foundry-based Solidity smart contract.
 
 ## Deployed Contract
@@ -31,6 +32,30 @@ Mainnet:
 
 Goerli testnet:
 [0x966E9031c06C09445625ced68a653582fbB18a73](https://goerli.etherscan.io/address/0x966E9031c06C09445625ced68a653582fbB18a73)
+
+# Upgradable
+
+The contract is a UUPS proxy implemented using an ERC1967Proxy.
+
+By default, the upgrade functionality included in UUPSUpgradeable contains a security mechanism that will prevent any
+upgrades to a non UUPS compliant implementation. This prevents upgrades to an implementation contract that wouldn’t
+contain the necessary upgrade mechanism, as it would lock the upgradeability of the proxy forever. This security
+mechanism can be bypassed by either of:
+
+- Adding a flag mechanism in the implementation that will disable the upgrade function when triggered.
+- Upgrading to an implementation that features an upgrade mechanism without the additional security check, and then
+  upgrading again to another implementation without the upgrade mechanism.
+
+The current implementation of this security mechanism uses EIP1822 to detect the storage slot used by the
+implementation.
+
+# Deploying
+
+```sh
+# this runs the deploy script on a local network, to run for real you'll need to broadcast.
+# See forge scripting for more info.
+forge script DeployUUPS
+```
 
 ## Deployment procedure
 
