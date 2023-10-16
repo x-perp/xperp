@@ -368,6 +368,87 @@ contract xPERPTest is PRBTest, StdCheats {
         assertEq(balanceAfter - balanceBefore, shareEpoch1 + shareEpoch2 + shareEpoch3, "balance mismatch");
     }
 
+    function testMultipleClaimAll() public {
+        //fund the pair
+        fundPair(1e18, 350_000e18);
+        xperp.EnableTradingOnUniSwap();
+        xperp.setLaunch(false);
+
+        //several users
+        address payable user1 = payable(address(0x13));
+        address payable user2 = payable(address(0x14));
+
+        xperp.approve(address(uniswapV2Router), type(uint256).max);
+        vm.startPrank(user1);
+        xperp.approve(address(uniswapV2Router), type(uint256).max);
+        vm.stopPrank();
+        vm.startPrank(user2);
+        xperp.approve(address(uniswapV2Router), type(uint256).max);
+        vm.stopPrank();
+
+
+        address[] memory path = new address[](2);
+        path[0] = weth;
+        path[1] = address(xperp);
+
+        // Fetch reserves
+        (uint reserveA, uint reserveB,) = uniswapV2Pair.getReserves();
+        // Make sure reserveA corresponds to ETH and reserveB to XPERP
+        address token0 = uniswapV2Pair.token0();
+        if (token0 == address(xperp)) {
+            (reserveA, reserveB) = (reserveB, reserveA);
+        }
+        // buy 1 ether worth of xperp
+
+
+        uint256 amountETHToUse = 0.02 * 1e18;
+        user1.transfer(amountETHToUse * 2);
+
+        vm.startPrank(user1);
+        uniswapV2Router.swapExactETHForTokens{value: amountETHToUse}(
+            0,
+            path,
+            user1,
+            block.timestamp
+        );
+        address[] memory pathReverse = new address[](2);
+        pathReverse[0] = address(xperp);  // Address of your token
+        pathReverse[1] = weth;  // Address of WETH (wrapped ether)
+        uint amountOfTokensToSwap = xperp.balanceOf(user1);
+        uniswapV2Router.swapExactTokensForETH(
+            amountOfTokensToSwap,
+            0,
+            pathReverse,
+            user1,
+            block.timestamp
+        );
+        vm.stopPrank();
+
+        user2.transfer(amountETHToUse);
+        vm.startPrank(user2);
+        uniswapV2Router.swapExactETHForTokens{value: amountETHToUse}(
+            0,
+            path,
+            user2,
+            block.timestamp
+        );
+        vm.stopPrank();
+
+        xperp.snapshot{value: 0}();
+
+        xperp.getBalanceForEpochOf(user1, 2);
+
+        uint balanceBefore = user1.balance;
+        vm.startPrank(user1);
+        xperp.claimAll();
+        vm.stopPrank();
+        uint balanceAfter = user1.balance;
+
+        vm.startPrank(user2);
+        xperp.claimAll();
+        vm.stopPrank();
+    }
+
 
     function testRounding() public {
         //several users
@@ -414,7 +495,6 @@ contract xPERPTest is PRBTest, StdCheats {
         console2.log("epochTradingRevenueETH", epochTradingRevenueETH);
         console2.log("getClaimable", xperp.getClaimableOf(user1, 1));
         console2.log("contract balance", address(xperp).balance);
-
 
         //    unable to claim 0.001357148539962383eth as i was the only owner so would have been able to claim it
         vm.startPrank(user1);

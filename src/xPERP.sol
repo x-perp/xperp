@@ -227,10 +227,6 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
         require(isTradingEnabled || !isTradingTransfer, "Trading is not enabled yet");
 
         // if trading is enabled, only allow transfers to and from the Uniswap pair
-        uint256 currentEpoch = epochs.length - 1;
-        epochs[currentEpoch].depositedInEpoch[to] += amount;
-        epochs[currentEpoch].withdrawnInEpoch[from] += amount;
-
         uint256 amountAfterTax = amount;
         // calculate 5% swap tax
         // owner() is an exception to fund the liquidity pair and revenueDistributionBot as well to fund the revenue distribution to holders
@@ -264,6 +260,9 @@ contract xPERP is ERC20, Ownable, Pausable, ReentrancyGuard {
                 revShareAndTeamCurrentEpochXPERP += taxAmountXPERP - lpShareXPERP;
             }
         }
+        uint256 currentEpoch = epochs.length - 1;
+        epochs[currentEpoch].depositedInEpoch[to] += amountAfterTax;
+        epochs[currentEpoch].withdrawnInEpoch[from] += amountAfterTax;
         super._transfer(from, to, amountAfterTax);
     }
 
