@@ -52,10 +52,14 @@ implementation.
 # Deploying
 
 Set `DEPLOYER_PRIVATE_KEY` in .env file.
-```sh
-# this runs the deploy script on a local network, to run for real you'll need to broadcast.
-# See forge scripting for more info.
+```shell
+# this runs the deploy script on a local network
 forge script DeployUUPS
+```
+
+```shell
+# this deploys to the goerli network
+forge script DeployUUPS --chain-id 5  --verify --rpc-url https://my_goerli_node_address --broadcast -vvvv  --private-key=0xprivatekey --ffi
 ```
 
 ## Deployment procedure

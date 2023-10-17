@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.21;
 
-//  xPERP Token
+//  xperp Token
 //   ____  _____ ____  ____
 //   __  _|  _ \| ____|  _ \|  _ \
 //   \ \/ / |_) |  _| | |_) | |_) |
@@ -55,7 +55,7 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
     // team wallet
     address payable public teamWallet;
 
-    // switched on post launch
+    /// @dev Enable trading on Uniswap
     bool public isTradingEnabled;
 
     // total swap tax collected, completely distributed among token holders, for analytical purposes only
@@ -103,6 +103,11 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
     event ReceivedEther(address indexed from, uint256 amount);
     event TaxChanged(uint256 tax, uint256 teamWalletTax);
     event TaxActiveChanged(bool isActive);
+    event WalletBalanceLimitChanged(uint256 walletBalanceLimit, uint256 sellLimit);
+    event TeamWalletUpdated(address teamWallet);
+    event AirDropToggled(bool isActive);
+    event Taxed(address indexed from, uint256 amountXperp);
+
 
     // =========== Constants =======
     /// @notice Admin role for upgrading, fees, and paused state
@@ -112,17 +117,15 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
     /// @notice Rescue role for rescuing tokens and Eth from the contract
     bytes32 public constant RESCUE_ROLE = keccak256("RESCUE_ROLE");
     /// @notice WhiteList role for listing vesting and other addresses that should be excluded from circulaing supply to not lower the revenue share for participants
-        bytes32 public constant EXCLUDED_FROM_CIRCULATION_ROLE = keccak256("EXCLUDED_FROM_CIRCULATION_ROLE");
+    bytes32 public constant EXCLUDED_FROM_CIRCULATION_ROLE = keccak256("EXCLUDED_FROM_CIRCULATION_ROLE");
     /// @notice WhiteList role for untaxed transfer for funding, vesting, and airdrops
     bytes32 public constant EXCLUDED_FROM_TAXATION_ROLE = keccak256("EXCLUDED_FROM_TAXATION_ROLE");
 
     // =========== Errors ==========
-    /// @dev Zero address
     error ZeroAddress();
 
     // ========== Proxy ==========
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -187,6 +190,9 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
 
     // ========== Configuration ==========
 
+    /// @notice This function is used to set tax on transfers to and from the uniswap pair, xperp is swapped to ETH and prepared for snapshot distribution
+    /// @param _tax The amount of totalTax to be applied on transfers to and from the U`niswap pair.
+    /// @param _teamWalletTax The amount of tax sent to tresure, the rest (_tax - _teamWalletTax) is the holders' revenue share.
     function setTax(uint256 _tax, uint256 _teamWalletTax) external onlyRole(ADMIN_ROLE) {
         require(_tax <= 10000 && _teamWalletTax >= 0 && _teamWalletTax <= 10000, "Invalid tax");
         totalTax = _tax;
@@ -194,42 +200,57 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
         emit TaxChanged(_tax, _teamWalletTax);
     }
 
+    /// @notice This function is used to enable or disable tax on transfers to and from the uniswap pair
+    /// @param _isTaxActive The new boolean value of isTaxActive
     function setTaxActive(bool _isTaxActive) external onlyRole(ADMIN_ROLE) {
         isTaxActive = _isTaxActive;
         emit TaxActiveChanged(_isTaxActive);
     }
 
+    /// This function is used to set the wallet balance limit
+    /// @param _walletBalanceLimit The new wallet balance limit, maximum allowed amount of tokens in a wallet, transfers are not prohibited
     function setWalletBalanceLimit(uint256 _walletBalanceLimit) external onlyRole(ADMIN_ROLE) {
         require(_walletBalanceLimit >= 0 && _walletBalanceLimit <= oneMillion, "Invalid wallet balance limit");
         walletBalanceLimit = _walletBalanceLimit;
+        emit WalletBalanceLimitChanged(_walletBalanceLimit, sellLimit);
     }
 
+    /// This function is used to set the sell limit
+    /// @param _sellLimit The new sell limit, maximum allowed amount of tokens to be sold in a single transaction
     function setSellLimit(uint256 _sellLimit) external onlyRole(ADMIN_ROLE) {
         require(_sellLimit >= 0 && _sellLimit <= oneMillion, "Invalid sell balance limit");
         sellLimit = _sellLimit;
+        emit WalletBalanceLimitChanged(walletBalanceLimit, _sellLimit);
     }
 
+    /// @notice This function is used to set the team wallet
+    /// @param _teamWallet The new team wallet getting the _teamWalletTax share from the swaps and trading revenue
     function updateTeamWallet(address payable _teamWallet) external onlyRole(ADMIN_ROLE) {
         require(_teamWallet != address(0), "Invalid team wallet");
         teamWallet = _teamWallet;
+        emit TeamWalletUpdated(_teamWallet);
     }
 
+    /// @notice This function is used to enable trading on Uniswap
     function EnableTradingOnUniSwap() external onlyRole(ADMIN_ROLE) {
         isTradingEnabled = true;
         emit TradingOnUniSwapEnabled();
     }
 
+    /// @notice This function is used to disable trading on Uniswap
     function DisableTradingOnUniSwap() external onlyRole(ADMIN_ROLE) {
         isTradingEnabled = false;
         emit TradingOnUniSwapDisabled();
     }
 
+    /// @notice Toggles airdrop mode vs claim by holders
     function toggleAirDrop() external onlyRole(SNAPSHOT_ROLE) {
         isAirDropActive = !isAirDropActive;
+        emit AirDropToggled(isAirDropActive);
     }
 
     // ========== ERC20 Overrides ==========
-    /// @dev overriden ERC20 transfer to tax on transfers to and from the uniswap pair, xperp is swapped to ETH and prepared for snapshot distribution
+    /// @notice overriden ERC20 transfer to tax on transfers to and from the uniswap pair, xperp is swapped to ETH and prepared for snapshot distribution
     function _update(address from, address to, uint256 amount) internal override {
         bool isTradingTransfer =
             (from == uniswapV2Pair || to == uniswapV2Pair) &&
@@ -257,6 +278,7 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
             if (isTaxActive) {
                 uint256 taxAmountXPERP = (amount * totalTax) / hundredPercent;
                 _transfer(from, address(this), taxAmountXPERP);
+                emit Taxed(from, taxAmountXPERP);
                 amountAfterTax -= taxAmountXPERP;
                 swapTaxCollectedTotalXPERP += taxAmountXPERP;
                 revShareAndTeamCurrentEpochXPERP += taxAmountXPERP;
@@ -270,7 +292,7 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
 
     // ========== Revenue Sharing ==========
 
-    // Function called by the revenue distribution bot to snapshot the state
+    /// @notice Function called by the revenue distribution bot to snapshot the state
     function snapshot() external payable onlyRole(SNAPSHOT_ROLE) nonReentrant {
         EpochInfo storage epoch = epochs[epochs.length - 1];
         epoch.epochTimestamp = block.timestamp;
@@ -296,6 +318,7 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
         revShareAndTeamCurrentEpochXPERP = 0;
     }
 
+    /// @notice Function called by holders to claim their revenue share
     function claimAll() public nonReentrant {
         require(!isAirDropActive, "Airdrop is active instead of claiming");
         uint256 holderShare = getClaimableOf(msg.sender);
@@ -307,7 +330,6 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
     }
 
     // ========== Internal Functions ==========
-
     function swapXPERPToETH(uint256 _amount) internal returns (uint256) {
         if (_amount == 0) return 0;
         address[] memory path = new address[](2);
