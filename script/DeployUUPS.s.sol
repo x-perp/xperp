@@ -20,7 +20,7 @@ contract DeployUUPS is Script {
         proxy = new UUPSProxy(address(implementation), "");
         // wrap in ABI to support easier calls
         wrappedProxy = XPERP(payable(address(proxy)));
-        wrappedProxy.initialize(payable(0x1746CF93F3368B4326423a82734A0ECC65D57bC5));
+        wrappedProxy.initialize(payable(0x13e15FBf296248116729A47093C316d3209E95a1));
         wrappedProxy.initPair();
         vm.stopBroadcast();
         console2.log("wrappedProxy", address(wrappedProxy));

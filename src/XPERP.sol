@@ -15,7 +15,7 @@ pragma solidity ^0.8.21;
 // - Tokenomics: 35% in LP, 10% to Team, 5% to Collateral Partners, 49% for future airdrops
 // - Partnership: 1% has been sold to Handz of Gods.
 // - Supply: 1M tokens
-// - Tax: 3.5% tax on xperp traded (0.5% to LP, 1.5% to revenue share, 1.5% to team and operating expenses).
+// - Tax: 3.5% tax on xperp traded (1.5% to revenue share, 2% to team and operating expenses).
 // - Revenue Sharing: 30% of trading revenue goes to holders.
 // - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
 
