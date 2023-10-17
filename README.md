@@ -51,6 +51,7 @@ implementation.
 
 # Deploying
 
+Set `DEPLOYER_PRIVATE_KEY` in .env file.
 ```sh
 # this runs the deploy script on a local network, to run for real you'll need to broadcast.
 # See forge scripting for more info.
@@ -61,17 +62,16 @@ forge script DeployUUPS
 
 1. Deploy the xperp token contract setting the team wallet.
 2. Configure revsharebot address.
-3. Run `init()` to initialize epochs and the LP.
-4. Sending the dedicated owner 1M tokens which is a fixed totalsupply (before 5**!**).
-5. Ownership transfer to the launcher.
-6. The launcher puts xperp along with ETH to the liquidity pair.
+3. Sending the dedicated owner 1M tokens which is a fixed totalsupply (before 5**!**).
+4. Ownership transfer to the launcher.
+5. The launcher puts xperp along with ETH to the liquidity pair.
 6. Executing`EnableTradingOnUniswap` function.
 
 ## Addresses
 
 - revsharebot: 0x87d71b3756A1e9c3117eEc8a79380926f66b80C3
 - owner: 0x11eD88f6eE21F5808EB4B37D8292c57dc3Cc5e19
-- team: 0x1746CF93F3368B4326423a82734A0ECC65D57bC5
+- team: 0x13e15FBf296248116729A47093C316d3209E95a1
 
 ## Liquidity Pair xperp/WETH
 

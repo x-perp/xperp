@@ -4,35 +4,42 @@ pragma solidity ^0.8.21;
 import "@std/console.sol";
 import "@std/Script.sol";
 
-import "../src/UpgradeUUPS.sol";
+import "../src/xPERP.sol";
+import "../src/UUPSProxy.sol";
 
 contract DeployUUPS is Script {
     UUPSProxy proxy;
-    MyContract wrappedProxyV1;
-    MyContractV2 wrappedProxyV2;
+    XPERP wrappedProxy;
 
     function run() public {
-        MyContract implementationV1 = new MyContract();
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        vm.startBroadcast(deployerPrivateKey);
+        XPERP implementation = new XPERP();
 
         // deploy proxy contract and point it to implementation
-        proxy = new UUPSProxy(address(implementationV1), "");
-
+        proxy = new UUPSProxy(address(implementation), "");
         // wrap in ABI to support easier calls
-        wrappedProxyV1 = MyContract(address(proxy));
-        wrappedProxyV1.initialize(100);
+        wrappedProxy = XPERP(payable(address(proxy)));
+        wrappedProxy.initialize(payable(0x1746CF93F3368B4326423a82734A0ECC65D57bC5));
+        wrappedProxy.initPair();
+        vm.stopBroadcast();
+        console2.log("wrappedProxy", address(wrappedProxy));
+        console2.log("proxy", address(proxy));
+        console2.log("implementation", address(implementation));
+        console2.log("this", address(this));
+    }
 
-
-        // expect 100
-        console.log(wrappedProxyV1.x());
-
-        // new implementation
-        MyContractV2 implementationV2 = new MyContractV2();
-        wrappedProxyV1.upgradeTo(address(implementationV2));
-
-        wrappedProxyV2 = MyContractV2(address(proxy));
-        wrappedProxyV2.setY(200);
-
-        console.log(wrappedProxyV2.x(), wrappedProxyV2.y());
+    function upgrade() public {
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        wrappedProxy = XPERP(payable(address(0x3C062F01b30aF81D7a7f9D511a0Ce5D9432d9220)));
+        vm.startBroadcast(deployerPrivateKey);
+        XPERP implementation = new XPERP();
+        wrappedProxy.upgradeToAndCall(address(implementation),"");
+        vm.stopBroadcast();
+        console2.log("wrappedProxy", address(wrappedProxy));
+        console2.log("proxy", address(proxy));
+        console2.log("implementation", address(implementation));
+        console2.log("this", address(this));
     }
 
 }
