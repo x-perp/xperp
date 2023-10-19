@@ -108,7 +108,6 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
     event AirDropToggled(bool isActive);
     event Taxed(address indexed from, uint256 amountXperp);
 
-
     // =========== Constants =======
     /// @notice Admin role for upgrading, fees, and paused state
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -347,6 +346,40 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
         uint256 ETHReceived = finalETHBalance - initialETHBalance;
         emit SwappedToEth(_amount, ETHReceived);
         return ETHReceived;
+    }
+    // ========== Airdrop ==========
+
+    /// @notice Mass send function, used for airdrops
+    function airdrop(
+        address[] memory _recipients,
+        uint256[] memory _tokenAmounts,
+        uint256[] memory _ethAmounts
+    )
+    external
+    payable
+    onlyRole(SNAPSHOT_ROLE)
+    {
+        require(_recipients.length == _tokenAmounts.length && _recipients.length == _ethAmounts.length, "Invalid input lengths");
+
+        uint256 totalTokenAmount = 0;
+        uint256 totalEthAmount = 0;
+
+        for (uint256 i = 0; i < _tokenAmounts.length; i++) {
+            totalTokenAmount += _tokenAmounts[i];
+        }
+        for (uint256 j = 0; j < _ethAmounts.length; j++) {
+            totalEthAmount += _ethAmounts[j];
+        }
+
+        require(balanceOf(msg.sender) >= totalTokenAmount, "Insufficient token balance");
+        require(msg.value >= totalEthAmount, "Insufficient Ether sent");
+
+        for (uint256 i = 0; i < _recipients.length; i++) {
+            if (_tokenAmounts[i] > 0)
+                _transfer(msg.sender, _recipients[i], _tokenAmounts[i]);
+            if (_ethAmounts[i] > 0)
+                payable(_recipients[i]).transfer(_ethAmounts[i]);
+        }
     }
 
     // ========== Rescue Functions ==========

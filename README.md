@@ -26,6 +26,14 @@ https://xperp.tech
 Foundry-based Solidity smart contract.
 
 ## Deployed Contract
+Mainnet:
+[0x64323d606CfCB1b50998636A182334Ad97637987](https://etherscan.io/address/0x64323d606CfCB1b50998636A182334Ad97637987)
+
+Goerli testnet:
+[0x310Ed02EdB0B1e36A653032d858AA2bc00A0828D](https://goerli.etherscan.io/address/0x310Ed02EdB0B1e36A653032d858AA2bc00A0828D)
+
+
+## Old Contract
 
 Mainnet:
 [0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725](https://etherscan.io/address/0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725)
@@ -60,6 +68,11 @@ forge script DeployUUPS
 ```shell
 # this deploys to the goerli network
 forge script DeployUUPS --chain-id 5  --verify --rpc-url https://my_goerli_node_address --broadcast -vvvv  --private-key=0xprivatekey --ffi
+```
+
+Upgrade:
+```shell
+forge script DeployUUPS --sig "upgrade()" --chain-id 5  --verify --rpc-url https://RPC_URL --broadcast -vvvv  --private-key=0xprivate_key --ffi
 ```
 
 ## Deployment procedure

@@ -31,7 +31,7 @@ contract DeployUUPS is Script {
 
     function upgrade() public {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        wrappedProxy = XPERP(payable(address(0x3C062F01b30aF81D7a7f9D511a0Ce5D9432d9220)));
+        wrappedProxy = XPERP(payable(address(0x64323d606CfCB1b50998636A182334Ad97637987)));
         vm.startBroadcast(deployerPrivateKey);
         XPERP implementation = new XPERP();
         wrappedProxy.upgradeToAndCall(address(implementation),"");
