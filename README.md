@@ -22,9 +22,18 @@ https://xperp.tech
 // - Revenue Sharing: 30% of trading revenue goes to holders.
 // - Eligibility: Holders of xperp tokens are entitled to revenue sharing.
 ```
+
 Foundry-based Solidity smart contract.
 
 ## Deployed Contract
+Mainnet:
+[0x64323d606CfCB1b50998636A182334Ad97637987](https://etherscan.io/address/0x64323d606CfCB1b50998636A182334Ad97637987)
+
+Goerli testnet:
+[0x310Ed02EdB0B1e36A653032d858AA2bc00A0828D](https://goerli.etherscan.io/address/0x310Ed02EdB0B1e36A653032d858AA2bc00A0828D)
+
+
+## Old Contract
 
 Mainnet:
 [0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725](https://etherscan.io/address/0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725)
@@ -32,21 +41,54 @@ Mainnet:
 Goerli testnet:
 [0x966E9031c06C09445625ced68a653582fbB18a73](https://goerli.etherscan.io/address/0x966E9031c06C09445625ced68a653582fbB18a73)
 
+# Upgradable
+
+The contract is a UUPS proxy implemented using an ERC1967Proxy.
+
+By default, the upgrade functionality included in UUPSUpgradeable contains a security mechanism that will prevent any
+upgrades to a non UUPS compliant implementation. This prevents upgrades to an implementation contract that wouldn’t
+contain the necessary upgrade mechanism, as it would lock the upgradeability of the proxy forever. This security
+mechanism can be bypassed by either of:
+
+- Adding a flag mechanism in the implementation that will disable the upgrade function when triggered.
+- Upgrading to an implementation that features an upgrade mechanism without the additional security check, and then
+  upgrading again to another implementation without the upgrade mechanism.
+
+The current implementation of this security mechanism uses EIP1822 to detect the storage slot used by the
+implementation.
+
+# Deploying
+
+Set `DEPLOYER_PRIVATE_KEY` in .env file.
+```shell
+# this runs the deploy script on a local network
+forge script DeployUUPS
+```
+
+```shell
+# this deploys to the goerli network
+forge script DeployUUPS --chain-id 5  --verify --rpc-url https://my_goerli_node_address --broadcast -vvvv  --private-key=0xprivatekey --ffi
+```
+
+Upgrade:
+```shell
+forge script DeployUUPS --sig "upgrade()" --chain-id 5  --verify --rpc-url https://RPC_URL --broadcast -vvvv  --private-key=0xprivate_key --ffi
+```
+
 ## Deployment procedure
 
 1. Deploy the xperp token contract setting the team wallet.
 2. Configure revsharebot address.
-3. Run `init()` to initialize epochs and the LP.
-4. Sending the dedicated owner 1M tokens which is a fixed totalsupply (before 5**!**).
-5. Ownership transfer to the launcher.
-6. The launcher puts xperp along with ETH to the liquidity pair.
+3. Sending the dedicated owner 1M tokens which is a fixed totalsupply (before 5**!**).
+4. Ownership transfer to the launcher.
+5. The launcher puts xperp along with ETH to the liquidity pair.
 6. Executing`EnableTradingOnUniswap` function.
 
 ## Addresses
 
 - revsharebot: 0x87d71b3756A1e9c3117eEc8a79380926f66b80C3
 - owner: 0x11eD88f6eE21F5808EB4B37D8292c57dc3Cc5e19
-- team: 0x1746CF93F3368B4326423a82734A0ECC65D57bC5
+- team: 0x13e15FBf296248116729A47093C316d3209E95a1
 
 ## Liquidity Pair xperp/WETH
 
