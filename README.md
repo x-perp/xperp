@@ -30,16 +30,7 @@ Mainnet:
 [0x64323d606CfCB1b50998636A182334Ad97637987](https://etherscan.io/address/0x64323d606CfCB1b50998636A182334Ad97637987)
 
 Goerli testnet:
-[0x310Ed02EdB0B1e36A653032d858AA2bc00A0828D](https://goerli.etherscan.io/address/0x310Ed02EdB0B1e36A653032d858AA2bc00A0828D)
-
-
-## Old Contract
-
-Mainnet:
-[0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725](https://etherscan.io/address/0x0D7e2Ba85fF3604D6ae5C56d1A5df334D9883725)
-
-Goerli testnet:
-[0x966E9031c06C09445625ced68a653582fbB18a73](https://goerli.etherscan.io/address/0x966E9031c06C09445625ced68a653582fbB18a73)
+[0x204e907312fd772b1b0c155fbd456ecd75eb47e4](https://goerli.etherscan.io/address/0x204e907312fd772b1b0c155fbd456ecd75eb47e4)
 
 # Upgradable
 
