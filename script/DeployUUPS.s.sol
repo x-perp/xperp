@@ -4,8 +4,8 @@ pragma solidity ^0.8.21;
 import "@std/console.sol";
 import "@std/Script.sol";
 
-import "../src/xPERP.sol";
-import "../src/UUPSProxy.sol";
+import "src/xPERP.sol";
+import "src/UUPSProxy.sol";
 
 contract DeployUUPS is Script {
     UUPSProxy proxy;
