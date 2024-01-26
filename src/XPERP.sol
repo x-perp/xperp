@@ -100,6 +100,7 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
     event SwappedToEth(uint256 amount, uint256 ethAmount);
     event SwappedToXperp(uint256 amount, uint256 ethAmount);
     event Claimed(address indexed user, uint256 amount);
+    event ClaimedBot(address indexed user, uint256 amount);
     event ReceivedEther(address indexed from, uint256 amount);
     event TaxChanged(uint256 tax, uint256 teamWalletTax);
     event TaxActiveChanged(bool isActive);
@@ -319,13 +320,30 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
 
     /// @notice Function called by holders to claim their revenue share
     function claimAll() public nonReentrant {
-        require(!isAirDropActive, "Airdrop is active instead of claiming");
+        require(!isAirDropActive, "Claiming is switch to the xperp trading system currently");
         uint256 holderShare = getClaimableOf(msg.sender);
         require(holderShare > 0, "Nothing to claim");
         lastClaimedEpochs[msg.sender] = epochs.length - 2;
         require(address(this).balance >= holderShare, "Insufficient contract balance");
         payable(msg.sender).transfer(holderShare);
         emit Claimed(msg.sender, holderShare);
+    }
+
+    /// @notice Function called by the xperp service to claim the revenue share instead of users
+    /// @notice The xperp service does the following:
+    /// @notice 1- Collects users in the table (tokentrasferevents) and determins all users.
+    /// @notice Does steps 2-5 in batches of 1000 users
+    /// @notice 2- Calls the getClaimableOfMulti for these users to get their claimable amount.
+    /// @notice 3- Saves these amounts to the database (swaprewards) - wallet - amount
+    /// @notice 4- Calls the claimBot function to claim the revenue share for these users with the total amount
+    /// @notice 5- If successfull records the claim in the database (swaprewards) - wallet - amount - txhash of the claimbot call
+    function claimBot(address payable operationalWallet, uint256 totalAmount, address[] memory _recipients) public onlyRole(SNAPSHOT_ROLE) nonReentrant {
+        require(address(this).balance >= totalAmount, "Insufficient Ether");
+        for (uint256 i = 0; i < _recipients.length; i++) {
+            lastClaimedEpochs[_recipients[i]] = epochs.length - 2;
+        }
+        operationalWallet.transfer(totalAmount);
+        emit ClaimedBot(operationalWallet, totalAmount);
     }
 
     // ========== Internal Functions ==========
@@ -429,6 +447,14 @@ contract XPERP is ERC20Upgradeable, PausableUpgradeable, AccessControlEnumerable
         uint256 holderShare = 0;
         for (uint256 i = lastClaimedEpochs[_user] + 1; i < epochs.length - 1; i++)
             holderShare += getClaimableForEpochOf(_user, i);
+        return holderShare;
+    }
+
+    function getClaimableOfMulti(address[] memory _user) public view returns (uint256[] memory) {
+        require(epochs.length > 1, "No epochs yet");
+        uint256[] memory holderShare = new uint256[](_user.length);
+        for (uint256 i = 0; i < _user.length; i++)
+            holderShare[i] = getClaimableOf(_user[i]);
         return holderShare;
     }
 
